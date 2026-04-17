@@ -8,6 +8,7 @@ const { createRepositories } = require("./repositories");
 const { registerRoutes } = require("./register-routes");
 const { registerSocket } = require("./socket");
 const { errorHandler } = require("./error-handler");
+const { setupSwagger } = require("./swagger");
 
 function buildCorsOptions(config) {
   return {
@@ -35,6 +36,10 @@ function createApp() {
   app.use(helmet());
   app.use(cors(corsOptions));
   app.use(express.json());
+  
+  // Setup API Documentation
+  setupSwagger(app, config);
+
   app.use(async (req, res, next) => {
     if (typeof repositories.ready === "function") {
       await repositories.ready();

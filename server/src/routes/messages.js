@@ -27,6 +27,25 @@ function serializeMessage(message) {
   };
 }
 
+/**
+ * @openapi
+ * /conversations/{peerUsername}/messages:
+ *   get:
+ *     summary: Get Messages
+ *     description: Retrieve messages for a conversation with a peer.
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: peerUsername
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of messages.
+ */
 function registerMessageRoutes(app, { config, repositories, io }) {
   app.get("/conversations/:peerUsername/messages", async (req, res, next) => {
     try {
@@ -42,6 +61,41 @@ function registerMessageRoutes(app, { config, repositories, io }) {
     }
   });
 
+  /**
+   * @openapi
+   * /conversations/{peerUsername}/messages:
+   *   post:
+   *     summary: Send Message
+   *     description: Send an encrypted message to a peer.
+   *     tags: [Messages]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: peerUsername
+   *         required: true
+   *         schema:
+   *           type: string
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [ciphertext, nonce]
+   *             properties:
+   *               ciphertext:
+   *                 type: string
+   *               nonce:
+   *                 type: string
+   *               salt:
+   *                 type: string
+   *               version:
+   *                 type: string
+   *     responses:
+   *       201:
+   *         description: Message sent.
+   */
   app.post("/conversations/:peerUsername/messages", async (req, res, next) => {
     try {
       const input = validate(createMessageSchema, req.body);
@@ -86,6 +140,25 @@ function registerMessageRoutes(app, { config, repositories, io }) {
     }
   });
 
+  /**
+   * @openapi
+   * /messages/{messageId}/tamper:
+   *   post:
+   *     summary: Tamper Message (Demo)
+   *     description: Simulate a server-side compromise by altering ciphertext.
+   *     tags: [Demo]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: messageId
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: Message tampered.
+   */
   app.post("/messages/:messageId/tamper", async (req, res, next) => {
     try {
       if (!config.enableDemoTools) {

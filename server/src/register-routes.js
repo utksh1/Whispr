@@ -9,6 +9,7 @@ function registerRoutes(app, { config, repositories, io }) {
       service: "Whispr Backend",
       status: "ok",
       docs: {
+        ui: "/api-docs",
         health: "/health",
         register: "POST /auth/register",
         login: "POST /auth/login",

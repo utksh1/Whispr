@@ -11,6 +11,32 @@ function serializeAuthUser(user) {
   };
 }
 
+/**
+ * @openapi
+ * /auth/register:
+ *   post:
+ *     summary: Register User
+ *     description: Create a new user account.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [username, password]
+ *             properties:
+ *               username:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *                 description: Plaintext password (sent over TLS)
+ *     responses:
+ *       201:
+ *         description: User created successfully.
+ *       409:
+ *         description: Username already taken.
+ */
 function registerAuthRoutes(app, { config, repositories }) {
   app.post("/auth/register", async (req, res, next) => {
     try {
@@ -36,6 +62,31 @@ function registerAuthRoutes(app, { config, repositories }) {
     }
   });
 
+  /**
+   * @openapi
+   * /auth/login:
+   *   post:
+   *     summary: Login User
+   *     description: Authenticate and receive a JWT.
+   *     tags: [Auth]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [username, password]
+   *             properties:
+   *               username:
+   *                 type: string
+   *               password:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Login successful.
+   *       401:
+   *         description: Invalid credentials.
+   */
   app.post("/auth/login", async (req, res, next) => {
     try {
       const input = validate(loginSchema, req.body);
@@ -64,6 +115,21 @@ function registerAuthRoutes(app, { config, repositories }) {
 
 }
 
+/**
+ * @openapi
+ * /auth/me:
+ *   get:
+ *     summary: Get Current User
+ *     description: Retrieve the authenticated user profile.
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved.
+ *       401:
+ *         description: Unauthorized.
+ */
 function registerAuthMeRoute(app, { repositories }) {
   app.get("/auth/me", async (req, res, next) => {
     try {
