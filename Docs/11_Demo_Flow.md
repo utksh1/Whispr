@@ -1,6 +1,6 @@
 # Whispr — Demo Flow
 
-This document describes an intended demonstration script for the project.
+This document describes the implemented demo script for the current MVP.
 
 ## Demo Goal
 Show that the system remains private even when the backend is compromised.
@@ -8,29 +8,35 @@ Show that the system remains private even when the backend is compromised.
 ## Demo Script
 
 ### Step 1 — User Setup
-- Register two users: Alice and Bob
-- Generate client-side keypairs
-- Show that only public keys are uploaded
+- Open `/demo`
+- Register or log in two users, such as Alice and Bob
+- Generate or restore local keypairs in each browser lane
+- Upload both public keys and mention that private keys never leave the browser
 
 ### Step 2 — Send Message
-- Alice sends a message to Bob
-- Encryption happens on Alice's device before network transmission
+- Select the active sender
+- Send a message from Alice to Bob
+- Explain that encryption happens on Alice's device before the payload crosses the network
 
 ### Step 3 — Show Backend View
-- Open admin panel or database view
-- Show stored ciphertext instead of readable plaintext
+- Point to the built-in compromised backend panel on the right
+- Show sender, receiver, nonce, and ciphertext only
 
 ### Step 4 — Receive Message
 - Bob receives ciphertext
 - Bob decrypts locally and sees plaintext
 
 ### Step 5 — Compromised Backend Scenario
-- Simulate attacker reading backend database
-- Show attacker sees only encrypted blobs and metadata
+- Describe the backend as a hostile blind relay
+- Show that an attacker inspecting the backend panel still cannot recover plaintext or private keys
 
 ### Step 6 — Tamper Test
-- Modify ciphertext or signature manually
-- Show message verification or decryption failure
+- Use the `Tamper latest ciphertext` control
+- Show the client-side integrity failure after the stored payload is corrupted
+
+## Supporting Surface
+
+The `/app` route provides the same authenticated APIs through a more conventional single-user chat interface. Use it when you want to show that the demo flow is not a one-off mock.
 
 ## What Judges Should Notice
 - privacy does not depend on trusting server
@@ -40,4 +46,4 @@ Show that the system remains private even when the backend is compromised.
 
 ## Implementation Note
 
-Adapt this demo flow to match the features that are actually implemented at presentation time.
+This flow matches the current implementation and should be updated if the demo harness behavior changes.

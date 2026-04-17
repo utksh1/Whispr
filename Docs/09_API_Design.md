@@ -1,8 +1,8 @@
 # 🛣️ Whispr — API Design
 
-This document outlines the RESTful API endpoints for the Whispr backend.
+This document outlines the RESTful API endpoints for the current Whispr MVP backend.
 
-This is a target API design. The current backend implementation is earlier-stage and does not yet expose all endpoints described here.
+These endpoints reflect the implemented in-memory authenticated flow. A Postgres-backed adapter is planned behind the same contracts.
 
 ## 🔐 Authentication
 
@@ -12,12 +12,21 @@ Create a new user account.
   ```json
   {
     "username": "alice",
-    "password": "plaintext_password_sent_over_tls",
-    "publicKey": "base64_encoded_x25519_pubkey"
+    "password": "plaintext_password_sent_over_tls"
   }
   ```
 
-The backend should hash the password before storage. Clients should not pre-hash passwords unless the full protocol is intentionally designed around that behavior.
+- **Response:**
+  ```json
+  {
+    "token": "jwt_token_here",
+    "user": {
+      "id": "uuid-1234",
+      "username": "alice",
+      "hasPublicKey": false
+    }
+  }
+  ```
 
 ### `POST /auth/login`
 Authenticate and return a session token.
@@ -25,7 +34,26 @@ Authenticate and return a session token.
   ```json
   {
     "token": "jwt_token_here",
-    "userId": "uuid-1234"
+    "user": {
+      "id": "uuid-1234",
+      "username": "alice",
+      "hasPublicKey": true
+    }
+  }
+  ```
+
+### `GET /auth/me`
+Return the currently authenticated user.
+
+- **Auth:** Bearer token required
+- **Response:**
+  ```json
+  {
+    "user": {
+      "id": "uuid-1234",
+      "username": "alice",
+      "hasPublicKey": true
+    }
   }
   ```
 
@@ -33,51 +61,86 @@ Authenticate and return a session token.
 
 ## 🔑 Key Management
 
-### `POST /keys/upload`
+### `PUT /me/public-key`
 Update or rotate the user's public key.
+
+- **Auth:** Bearer token required
 - **Request Body:**
   ```json
   { "publicKey": "..." }
   ```
 
-### `GET /keys/:userId`
-Retrieve the public key for a target user to initiate an E2EE session.
+### `GET /users/:username/public-key`
+Retrieve the public key for a target user.
+
+- **Auth:** Bearer token required
 - **Response:**
   ```json
-  { "userId": "...", "publicKey": "..." }
+  { "username": "bob", "publicKey": "..." }
+  ```
+
+### `GET /users?query=<prefix>`
+List users for chat discovery.
+
+- **Auth:** Bearer token required
+- **Response:**
+  ```json
+  {
+    "users": [
+      {
+        "id": "uuid-5678",
+        "username": "bob",
+        "hasPublicKey": true
+      }
+    ]
+  }
   ```
 
 ---
 
 ## 💬 Conversations & Messages
 
-### `POST /messages`
+### `POST /conversations/:peerUsername/messages`
 Send an encrypted message payload. The server acts as a blind relay.
+
+- **Auth:** Bearer token required
 - **Request Body:**
   ```json
   {
-    "conversationId": "uuid-5678",
     "ciphertext": "base64_payload",
-    "nonce": "base64_nonce",
-    "receiverId": "uuid-9012"
+    "nonce": "base64_nonce"
   }
   ```
 
-Depending on the final integrity design, the payload may also include a signature, key identifier, message version, or replay-protection field.
+The server derives the sender from the authenticated session. Clients do not send `senderId`.
 
-### `GET /messages/:conversationId`
-Fetch encrypted messages for a specific conversation.
+### `GET /conversations/:peerUsername/messages`
+Fetch encrypted messages for the authenticated user's conversation with a peer.
+
+- **Auth:** Bearer token required
 - **Response:**
   ```json
-  [
-    {
-      "id": "msg-001",
-      "senderId": "uuid-1234",
-      "ciphertext": "...",
-      "timestamp": "2024-04-17T12:00:00Z"
-    }
-  ]
+  {
+    "conversationId": "conversation-key",
+    "messages": [
+      {
+        "id": "msg-001",
+        "senderUsername": "alice",
+        "receiverUsername": "bob",
+        "ciphertext": "...",
+        "nonce": "...",
+        "createdAt": "2024-04-17T12:00:00Z",
+        "tampered": false
+      }
+    ]
+  }
   ```
+
+### `POST /messages/:messageId/tamper`
+Intentionally corrupt a stored ciphertext for the demo harness.
+
+- **Auth:** Bearer token required
+- **Availability:** only when `ENABLE_DEMO_TOOLS=true`
 
 ---
 
@@ -85,9 +148,9 @@ Fetch encrypted messages for a specific conversation.
 
 | Event | Direction | Description |
 | :--- | :--- | :--- |
-| `message:send` | Client -> Server | Submit encrypted payload |
-| `message:receive` | Server -> Client | Relay payload to target |
-| `message:delivered` | Server -> Client | Confirm delivery to sender |
+| socket handshake auth | Client -> Server | Provide bearer-style auth token through Socket.IO auth |
+| `message:receive` | Server -> Client | Relay payload to authenticated participants |
+| `message:tampered` | Server -> Client | Notify participants that demo tampering occurred |
 
 ---
 
@@ -95,4 +158,4 @@ Fetch encrypted messages for a specific conversation.
 - **Payload Validation:** Use Zod/Joi to enforce strict schemas.
 - **Privacy First:** The server MUST NOT log ciphertext or any metadata that could be used for fingerprinting.
 - **Rate Limiting:** Protect all endpoints against brute-force and DoS attacks.
-- **Password Storage:** Store only salted password hashes, never plaintext or reversible encrypted passwords.
+- **Password Storage:** Store only password hashes, never plaintext or reversible encrypted passwords.

@@ -11,6 +11,8 @@ This directory contains the Whispr backend service.
 - Helmet
 - CORS
 - dotenv
+- in-memory repository adapters
+- Node test runner
 
 ## Purpose
 
@@ -29,16 +31,19 @@ Under the project trust model, the server is not trusted with message confidenti
 
 ## Current State
 
-The backend is currently early-stage.
+The backend now implements the MVP service contracts:
 
-The existing codebase includes:
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /auth/me`
+- `PUT /me/public-key`
+- `GET /users`
+- `GET /users/:username/public-key`
+- `GET /conversations/:peerUsername/messages`
+- `POST /conversations/:peerUsername/messages`
+- `POST /messages/:messageId/tamper` when demo tools are enabled
 
-- Express app bootstrapping
-- security middleware setup
-- Socket.IO server initialization
-- a `GET /health` endpoint
-
-The fuller API and storage model described in `../Docs/` should be treated as target design until implemented.
+HTTP routes and Socket.IO connections are JWT-protected. The current persistence layer is in-memory behind repository interfaces, with a Postgres adapter stubbed for the next phase.
 
 ## Development
 
@@ -51,7 +56,7 @@ npm install
 Start the server:
 
 ```bash
-node index.js
+npm start
 ```
 
 By default, the server listens on `http://localhost:4000`.
@@ -67,7 +72,8 @@ Expected response:
 ```json
 {
   "status": "ok",
-  "service": "Whispr Backend"
+  "service": "Whispr Backend",
+  "storageDriver": "memory"
 }
 ```
 
@@ -75,11 +81,26 @@ Expected response:
 
 The current server reads environment variables through `dotenv`.
 
-Supported variable today:
+Supported variables:
 
-- `PORT`: optional port override for the HTTP and Socket.IO server
+- `PORT`: optional port override
+- `CLIENT_ORIGIN`: allowed browser origin for CORS and Socket.IO
+- `JWT_SECRET`: signing secret for auth tokens
+- `TOKEN_TTL_SECONDS`: auth token lifetime
+- `ENABLE_DEMO_TOOLS`: enables ciphertext tamper route for the demo harness
+- `STORAGE_DRIVER`: `memory` today, `postgres` reserved for the next adapter phase
+- `DATABASE_URL`: Neon/Postgres connection string used when `STORAGE_DRIVER=postgres`
+- `DISABLE_REALTIME`: disables Socket.IO broadcast path and expects polling/manual refresh instead
 
 See `./.env.example` for a minimal example.
+
+## Tests
+
+Run the server integration test suite with:
+
+```bash
+npm test
+```
 
 ## Development Notes
 

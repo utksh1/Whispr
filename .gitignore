@@ -2,3 +2,7 @@
 .vscode/
 node_modules/
 .env
+.kilo/
+.vercel/
+client/.next/
+server/.env

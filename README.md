@@ -19,6 +19,11 @@ The repository currently contains:
 - a `server/` Express and Socket.IO service
 - a `Docs/` directory describing the target architecture, security model, and roadmap
 
+Current implemented surfaces:
+
+- `/app` authenticated single-user chat flow
+- `/demo` dual-client authenticated demo harness
+
 Service-specific setup:
 
 - [`client/README.md`](./client/README.md)
@@ -70,8 +75,8 @@ graph TD
 | :--- | :--- |
 | **Frontend** | Next.js, React, TypeScript, Tailwind CSS |
 | **Backend** | Node.js, Express, Socket.IO, Zod |
-| **Database** | Planned: PostgreSQL |
-| **Security Direction** | Web Crypto API, libsodium-compatible design, X25519, HKDF, AEAD |
+| **Database** | In-memory repository adapter today, Postgres adapter planned |
+| **Security Direction** | Web Crypto API MVP using browser ECDH P-256 + AES-GCM, with stronger primitive upgrades planned |
 
 ## Local Development
 
@@ -88,7 +93,7 @@ npm run dev
 ```bash
 cd server
 npm install
-node index.js
+npm start
 ```
 
 Server health check:
@@ -96,6 +101,12 @@ Server health check:
 ```bash
 curl http://localhost:4000/health
 ```
+
+Local env setup:
+
+- `client/.env.example` defines `NEXT_PUBLIC_API_URL`
+- `client/.env.example` also includes `NEXT_PUBLIC_DISABLE_REALTIME` for Vercel-hosted polling mode
+- `server/.env.example` defines port, client origin, JWT secret, token TTL, demo tools, storage driver, database URL, and realtime toggle
 
 ---
 
