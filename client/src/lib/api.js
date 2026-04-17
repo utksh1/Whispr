@@ -68,6 +68,12 @@ export function getUserPublicKey(token, username) {
   });
 }
 
+export function listConversations(token) {
+  return apiRequest("/conversations", {
+    token,
+  });
+}
+
 export function fetchConversationMessages(token, peerUsername) {
   return apiRequest(`/conversations/${encodeURIComponent(peerUsername)}/messages`, {
     token,
