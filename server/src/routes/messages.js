@@ -29,10 +29,24 @@ function serializeMessage(message) {
 
 /**
  * @openapi
+ * /conversations:
+ *   get:
+ *     summary: List Conversations
+ *     description: Retrieve a list of recent conversations for the authenticated user.
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of conversations.
+ */
+
+/**
+ * @openapi
  * /conversations/{peerUsername}/messages:
  *   get:
  *     summary: Get Messages
- *     description: Retrieve messages for a conversation with a peer.
+ *     description: Retrieve encrypted messages for a conversation with a peer.
  *     tags: [Messages]
  *     security:
  *       - bearerAuth: []
@@ -47,13 +61,28 @@ function serializeMessage(message) {
  *         description: List of messages.
  */
 function registerMessageRoutes(app, { config, repositories, io }) {
+  app.get("/conversations", async (req, res, next) => {
+    try {
+      const conversations = await repositories.messages.listConversations(req.auth.sub);
+      res.json({
+        conversations,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/conversations/:peerUsername/messages", async (req, res, next) => {
     try {
       const peer = await requirePeer(repositories, req.params.peerUsername);
+      const conversation = await repositories.messages.findConversationByParticipants(
+        req.auth.sub,
+        peer.id
+      );
       const messages = await repositories.messages.listConversation(req.auth.sub, peer.id);
 
       res.json({
-        conversationId: [req.auth.sub, peer.id].sort().join(":"),
+        conversationId: conversation?.id || null,
         messages: messages.map(serializeMessage),
       });
     } catch (error) {
@@ -82,7 +111,7 @@ function registerMessageRoutes(app, { config, repositories, io }) {
    *         application/json:
    *           schema:
    *             type: object
-   *             required: [ciphertext, nonce]
+   *             required: [ciphertext, nonce, salt, version]
    *             properties:
    *               ciphertext:
    *                 type: string
@@ -144,8 +173,8 @@ function registerMessageRoutes(app, { config, repositories, io }) {
    * @openapi
    * /messages/{messageId}/tamper:
    *   post:
-   *     summary: Tamper Message (Demo)
-   *     description: Simulate a server-side compromise by altering ciphertext.
+   *     summary: Tamper Message
+   *     description: Demo-only endpoint that intentionally corrupts stored ciphertext.
    *     tags: [Demo]
    *     security:
    *       - bearerAuth: []

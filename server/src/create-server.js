@@ -36,10 +36,7 @@ function createApp() {
   app.use(helmet());
   app.use(cors(corsOptions));
   app.use(express.json());
-  
-  // Setup API Documentation
   setupSwagger(app, config);
-
   app.use(async (req, res, next) => {
     if (typeof repositories.ready === "function") {
       await repositories.ready();

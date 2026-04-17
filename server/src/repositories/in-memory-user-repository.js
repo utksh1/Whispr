@@ -45,7 +45,7 @@ class InMemoryUserRepository {
     const normalizedQuery = (query || "").trim().toLowerCase();
 
     return Array.from(this.usersById.values())
-      .filter((user) => !normalizedQuery || user.username.startsWith(normalizedQuery))
+      .filter((user) => !normalizedQuery || user.username.includes(normalizedQuery))
       .sort((left, right) => left.username.localeCompare(right.username))
       .map((user) => ({
         id: user.id,
@@ -70,6 +70,18 @@ class InMemoryUserRepository {
     this.usersById.set(userId, nextUser);
 
     return { ...nextUser };
+  }
+
+  toState() {
+    return {
+      usersById: Array.from(this.usersById.entries()),
+      idsByUsername: Array.from(this.idsByUsername.entries()),
+    };
+  }
+
+  fromState(state) {
+    this.usersById = new Map(state.usersById || []);
+    this.idsByUsername = new Map(state.idsByUsername || []);
   }
 }
 

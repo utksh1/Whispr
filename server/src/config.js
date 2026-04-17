@@ -33,13 +33,25 @@ function normalizeString(value, fallbackValue = "") {
 }
 
 function loadConfig() {
+  const port = parsePositiveInteger(process.env.PORT, 4000);
+  const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_ORIGIN);
+
+  // Always allow the server's own origin and 127.0.0.1 for the Swagger UI
+  const selfOrigins = [`http://localhost:${port}`, `http://127.0.0.1:${port}`];
+  for (const origin of selfOrigins) {
+    if (!allowedOrigins.includes(origin)) {
+      allowedOrigins.push(origin);
+    }
+  }
+
   return {
-    port: parsePositiveInteger(process.env.PORT, 4000),
+    port,
     jwtSecret: normalizeString(process.env.JWT_SECRET, "whispr-dev-secret-change-me"),
     tokenTtlSeconds: parsePositiveInteger(process.env.TOKEN_TTL_SECONDS, 60 * 60 * 24 * 7),
-    allowedOrigins: parseAllowedOrigins(process.env.CLIENT_ORIGIN),
+    allowedOrigins,
     enableDemoTools: parseBoolean(process.env.ENABLE_DEMO_TOOLS),
-    storageDriver: normalizeString(process.env.STORAGE_DRIVER, "memory"),
+    storageDriver: normalizeString(process.env.STORAGE_DRIVER, "filesystem"),
+    storagePath: normalizeString(process.env.STORAGE_PATH, "data/db.json"),
     databaseUrl: normalizeString(process.env.DATABASE_URL),
     disableRealtime: parseBoolean(process.env.DISABLE_REALTIME),
   };

@@ -16,7 +16,7 @@ function serializeAuthUser(user) {
  * /auth/register:
  *   post:
  *     summary: Register User
- *     description: Create a new user account.
+ *     description: Create a new user account and return a JWT.
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -30,12 +30,9 @@ function serializeAuthUser(user) {
  *                 type: string
  *               password:
  *                 type: string
- *                 description: Plaintext password (sent over TLS)
  *     responses:
  *       201:
  *         description: User created successfully.
- *       409:
- *         description: Username already taken.
  */
 function registerAuthRoutes(app, { config, repositories }) {
   app.post("/auth/register", async (req, res, next) => {
@@ -84,8 +81,8 @@ function registerAuthRoutes(app, { config, repositories }) {
    *     responses:
    *       200:
    *         description: Login successful.
-   *       401:
-   *         description: Invalid credentials.
+ *       401:
+ *         description: Invalid credentials.
    */
   app.post("/auth/login", async (req, res, next) => {
     try {

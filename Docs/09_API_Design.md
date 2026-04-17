@@ -142,6 +142,52 @@ Intentionally corrupt a stored ciphertext for the demo harness.
 - **Auth:** Bearer token required
 - **Availability:** only when `ENABLE_DEMO_TOOLS=true`
 
+### Proposed Session Direction
+Every stored message already has a unique `id`. That gives us a natural anchor if we want to introduce a chat session layer later.
+
+Recommended distinction:
+- JWT auth session: identifies the logged-in client and should remain separate from message storage
+- conversation id: identifies the long-lived relationship between two users
+- chat session id: identifies one bounded exchange inside a conversation
+
+Recommended approach:
+- do not use a message id as the user's auth session token
+- if we want sessionized chats, use the first message in a bounded exchange as the `rootMessageId`
+- expose a derived `sessionId` or `rootMessageId` in message payloads for grouping
+
+Example future response shape:
+```json
+{
+  "conversationId": "user-a:user-b",
+  "sessionId": "msg-root-001",
+  "messages": [
+    {
+      "id": "msg-root-001",
+      "sessionId": "msg-root-001",
+      "senderUsername": "alice",
+      "receiverUsername": "bob",
+      "ciphertext": "...",
+      "nonce": "...",
+      "createdAt": "2026-04-18T10:00:00Z"
+    },
+    {
+      "id": "msg-reply-002",
+      "sessionId": "msg-root-001",
+      "senderUsername": "bob",
+      "receiverUsername": "alice",
+      "ciphertext": "...",
+      "nonce": "...",
+      "createdAt": "2026-04-18T10:01:00Z"
+    }
+  ]
+}
+```
+
+Why this is safer:
+- message ids are immutable record ids, which makes them good anchors
+- auth sessions rotate and expire, so tying them to message ids would mix unrelated concerns
+- this keeps room for future features like per-session key rotation, replay protection, session closing, and judge-friendly demo grouping
+
 ---
 
 ## ⚡ Realtime Events (WebSockets)

@@ -77,6 +77,20 @@ Expected response:
 }
 ```
 
+## Swagger Docs
+
+Swagger UI is available at:
+
+```bash
+http://localhost:4000/docs
+```
+
+Raw OpenAPI JSON is available at:
+
+```bash
+http://localhost:4000/openapi.json
+```
+
 ## Environment Variables
 
 The current server reads environment variables through `dotenv`.

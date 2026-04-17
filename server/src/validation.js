@@ -6,7 +6,7 @@ const usernameSchema = zod
   .trim()
   .min(3)
   .max(32)
-  .regex(/^[a-z0-9-]+$/);
+  .regex(/^[a-zA-Z0-9-]+$/);
 
 const passwordSchema = zod.string().min(8).max(128);
 const publicKeySchema = zod.string().min(1);

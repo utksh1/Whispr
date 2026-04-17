@@ -4,7 +4,7 @@ const { once } = require("node:events");
 const { createServer } = require("../src/create-server");
 
 function createApi(baseUrl) {
-  return async function api(path, options = {}) {
+  async function api(path, options = {}) {
     const { headers, ...restOptions } = options;
     const response = await fetch(`${baseUrl}${path}`, {
       headers: {
@@ -16,7 +16,11 @@ function createApi(baseUrl) {
     const body = await response.json();
 
     return { status: response.status, body };
-  };
+  }
+
+  api.baseUrl = baseUrl;
+
+  return api;
 }
 
 test("register/login/auth/message flow works and never stores plaintext", async () => {
@@ -127,12 +131,24 @@ test("register/login/auth/message flow works and never stores plaintext", async 
 
     assert.equal(sendMessage.status, 201);
     assert.equal(sendMessage.body.message.senderUsername, "alice");
+    assert.match(sendMessage.body.message.conversationId, /^[0-9a-f-]{36}$/i);
+
+    const storedConversationMessages = [
+      ...repositories.messages.messagesByConversationId.values(),
+    ][0];
+
+    assert.equal(repositories.messages.conversationsByKey.size, 1);
+    assert.equal(storedConversationMessages.length, 1);
+    assert.equal(storedConversationMessages[0].senderUsername, undefined);
+    assert.equal(storedConversationMessages[0].receiverUsername, undefined);
+    assert.equal(storedConversationMessages[0].receiverId, undefined);
 
     const messages = await api("/conversations/alice/messages", {
       headers: bobHeaders,
     });
 
     assert.equal(messages.status, 200);
+    assert.equal(messages.body.conversationId, sendMessage.body.message.conversationId);
     assert.equal(messages.body.messages.length, 1);
     assert.equal(messages.body.messages[0].ciphertext, "ciphertext-value");
     assert.equal(messages.body.messages[0].salt, "salt-value");
@@ -196,11 +212,26 @@ test("public root and health routes do not require auth", async () => {
     assert.equal(root.status, 200);
     assert.equal(root.body.service, "Whispr Backend");
     assert.equal(root.body.status, "ok");
+    assert.equal(root.body.docs.ui, "/docs");
+    assert.equal(root.body.docs.openapi, "/openapi.json");
 
     const health = await api("/health");
     assert.equal(health.status, 200);
     assert.equal(health.body.service, "Whispr Backend");
     assert.equal(health.body.status, "ok");
+
+    const openApi = await api("/openapi.json");
+    assert.equal(openApi.status, 200);
+    assert.equal(openApi.body.openapi, "3.0.0");
+    assert.equal(openApi.body.info.title, "Whispr API");
+    assert.ok(openApi.body.paths["/auth/register"]);
+    assert.ok(openApi.body.paths["/health"]);
+
+    const docsResponse = await fetch(`${api.baseUrl}/docs/`);
+    const docsHtml = await docsResponse.text();
+    assert.equal(docsResponse.status, 200);
+    assert.match(docsResponse.headers.get("content-type"), /text\/html/);
+    assert.match(docsHtml, /SwaggerUIBundle/);
   } finally {
     server.close();
   }

@@ -17,7 +17,7 @@ function serializeDirectoryUser(user) {
  * /me/public-key:
  *   put:
  *     summary: Update Public Key
- *     description: Set the current user's X25519 public key.
+ *     description: Set or rotate the authenticated user's public key.
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -58,7 +58,7 @@ function registerUserRoutes(app, { repositories }) {
    * /users:
    *   get:
    *     summary: Search Users
-   *     description: Find users by username.
+   *     description: Find users by username prefix.
    *     tags: [Users]
    *     security:
    *       - bearerAuth: []
@@ -69,7 +69,7 @@ function registerUserRoutes(app, { repositories }) {
    *           type: string
    *     responses:
    *       200:
-   *         description: List of users.
+   *         description: List of matching users.
    */
   app.get("/users", async (req, res, next) => {
     try {
@@ -101,6 +101,8 @@ function registerUserRoutes(app, { repositories }) {
    *     responses:
    *       200:
    *         description: Public key retrieved.
+   *       404:
+   *         description: Public key not found.
    */
   app.get("/users/:username/public-key", async (req, res, next) => {
     try {

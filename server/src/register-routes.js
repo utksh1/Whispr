@@ -4,12 +4,24 @@ const { registerUserRoutes } = require("./routes/users");
 const { registerMessageRoutes } = require("./routes/messages");
 
 function registerRoutes(app, { config, repositories, io }) {
+  /**
+   * @openapi
+   * /:
+   *   get:
+   *     summary: Service Overview
+   *     description: Public metadata entrypoint for the backend plus useful links.
+   *     tags: [Meta]
+   *     responses:
+   *       200:
+   *         description: Public service metadata.
+   */
   app.get("/", (req, res) => {
     res.json({
       service: "Whispr Backend",
       status: "ok",
       docs: {
-        ui: "/api-docs",
+        ui: "/docs",
+        openapi: "/openapi.json",
         health: "/health",
         register: "POST /auth/register",
         login: "POST /auth/login",
@@ -18,6 +30,17 @@ function registerRoutes(app, { config, repositories, io }) {
     });
   });
 
+  /**
+   * @openapi
+   * /health:
+   *   get:
+   *     summary: Health Check
+   *     description: Public readiness probe for the Whispr backend.
+   *     tags: [Meta]
+   *     responses:
+   *       200:
+   *         description: Service health payload.
+   */
   app.get("/health", (req, res) => {
     res.json({
       status: "ok",
