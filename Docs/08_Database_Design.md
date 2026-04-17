@@ -60,3 +60,7 @@ message_metadata (
 
 ## Design Principle
 Only encrypted payloads and safe operational metadata should be stored. Plaintext messages must never be stored in the database.
+
+## Implementation Note
+
+This schema is a target design, not a guarantee that every table already exists in the running codebase.

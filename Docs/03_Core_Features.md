@@ -1,5 +1,7 @@
 # Whispr — Core Features
 
+This document lists target features for the project and should not be read as a completion checklist for the current codebase.
+
 ## Must-Have Features
 1. **User authentication**
    - Secure signup and login
@@ -43,3 +45,7 @@
 - “Compromised server” admin panel showing ciphertext only
 - Side-by-side plaintext on client vs ciphertext in database
 - Message tampering demo showing verification failure
+
+## Implementation Note
+
+As features move from planned to implemented, update this file and the related architecture, API, and README documentation together.

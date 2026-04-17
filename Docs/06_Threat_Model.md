@@ -1,5 +1,7 @@
 # Whispr — Threat Model
 
+This document defines the intended threat assumptions for the system design.
+
 ## Security Assumption
 The backend may be compromised.
 
@@ -41,3 +43,7 @@ The attacker may:
 - nonce management
 - secure session design
 - rate limiting and audit logging
+
+## Implementation Note
+
+Threat mitigations listed here represent the target security model. The codebase should be evaluated against this document as implementation progresses.

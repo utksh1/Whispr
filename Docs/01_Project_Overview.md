@@ -1,5 +1,7 @@
 # Whispr — Project Overview
 
+This document describes the project vision and target direction for Whispr.
+
 ## Project Name
 **Whispr**
 
@@ -29,3 +31,7 @@ Traditional systems often stop at HTTPS. That protects data in transit, but not 
 - Database leaks reveal ciphertext, not conversations
 - Stronger privacy model than a normal chat app
 - Clear threat model and practical security design
+
+## Implementation Note
+
+This overview is intentionally high-level and aspirational. Refer to the repository root and service READMEs for the current implementation state.

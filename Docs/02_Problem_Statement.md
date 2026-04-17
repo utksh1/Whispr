@@ -1,5 +1,7 @@
 # Whispr — Problem Statement
 
+This document defines the security problem Whispr is intended to solve.
+
 ## Problem Statement
 Create a secure communication system that remains private even if the backend is compromised.
 
@@ -28,3 +30,7 @@ Even if an attacker gains access to the backend:
 
 ## Project Interpretation
 Whispr solves this by making the client responsible for encryption and decryption, while the server only handles routing, delivery, and ciphertext storage.
+
+## Implementation Note
+
+This is a problem framing document, not a statement that the full solution is already implemented in code.

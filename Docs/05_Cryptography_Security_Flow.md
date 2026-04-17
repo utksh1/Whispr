@@ -39,19 +39,19 @@ sequenceDiagram
 
 ## 🛠️ Cryptographic Primitives
 
-We choose modern, performance-oriented primitives that are widely supported via the **Web Crypto API** or lightweight libraries like **libsodium**.
+We choose modern, performance-oriented primitives that are appropriate for web clients and can be implemented through the **Web Crypto API** and carefully selected supporting libraries where necessary.
 
 ### 1. Key Exchange (X25519)
 Used to establish a shared secret or distribute public keys for asynchronous messaging. It provides high security with small key sizes.
 
-### 2. Authenticated Encryption (ChaCha20-Poly1305)
-We prefer ChaCha20-Poly1305 over AES-GCM for mobile and web environments because it is faster in software implementations and provides robust **Authenticated Encryption with Associated Data (AEAD)**.
+### 2. Authenticated Encryption (AEAD)
+Whispr should use a modern AEAD construction for message confidentiality and integrity. The exact implementation choice must match the actual client platform capabilities and should be documented when finalized.
 
 ### 3. Key Derivation (HKDF-SHA256)
 All symmetric keys used for actual encryption are derived using HKDF to ensure high entropy and isolation between different security contexts.
 
-### 4. Integrity (Ed25519)
-Optional digital signatures to ensure that messages originated from the claimed sender and haven't been replayed or modified.
+### 4. Integrity and Authenticity
+Digital signatures or equivalent authenticated message designs may be used to ensure that messages originated from the claimed sender and have not been modified or replayed.
 
 ---
 
@@ -62,4 +62,4 @@ Optional digital signatures to ensure that messages originated from the claimed 
 ---
 
 > [!IMPORTANT]
-> This flow ensures **Forward Secrecy** if ephemeral keys are rotated regularly. Implementations should focus on minimizing the lifetime of keys stored in memory.
+> This document describes the intended security direction. The exact message format, key rotation policy, replay protection strategy, and signature model should be documented alongside implementation once they are finalized.

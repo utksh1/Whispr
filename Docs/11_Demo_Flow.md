@@ -1,5 +1,7 @@
 # Whispr — Demo Flow
 
+This document describes an intended demonstration script for the project.
+
 ## Demo Goal
 Show that the system remains private even when the backend is compromised.
 
@@ -35,3 +37,7 @@ Show that the system remains private even when the backend is compromised.
 - encryption is practical and end-to-end
 - system design directly matches the problem statement
 - strong combination of security and product thinking
+
+## Implementation Note
+
+Adapt this demo flow to match the features that are actually implemented at presentation time.

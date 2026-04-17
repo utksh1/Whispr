@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Whispr Client
 
-## Getting Started
+This directory contains the Whispr frontend application.
 
-First, run the development server:
+## Stack
+
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+
+## Purpose
+
+The client is responsible for the user-facing messaging experience and, over time, will hold the security-critical logic that belongs on trusted user devices:
+
+- authentication flows
+- key generation and local key handling
+- message encryption before transmission
+- message decryption after receipt
+- integrity and authenticity checks in the UI flow
+
+## Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Run lint checks:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run lint
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create a production build:
 
-## Learn More
+```bash
+npm run build
+```
 
-To learn more about Next.js, take a look at the following resources:
+The app runs on `http://localhost:3000` by default.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Current State
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+This app is in an early stage. Some architecture and security behavior described in the root `Docs/` directory reflects intended design, not fully completed implementation.
 
-## Deploy on Vercel
+When making client changes:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- keep security-sensitive logic on the client side
+- avoid introducing flows that move plaintext or private keys to the backend
+- update the matching docs when implementation decisions become concrete
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Related Docs
+
+- `../README.md`
+- `../Docs/04_System_Architecture.md`
+- `../Docs/05_Cryptography_Security_Flow.md`
+- `../Docs/09_API_Design.md`

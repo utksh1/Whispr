@@ -43,3 +43,7 @@ If time is limited, finish these first:
 3. encrypted one-to-one chat
 4. ciphertext-only storage
 5. server-compromise demo
+
+## Documentation Rule
+
+As each roadmap item becomes implemented, update the related design document so the repository stays honest about what is complete versus planned.

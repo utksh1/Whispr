@@ -1,5 +1,7 @@
 # Whispr — Pitch Notes
 
+This file is presentation material, not an implementation spec.
+
 ## Elevator Pitch
 Whispr is a secure messaging platform designed for a zero-trust backend world. Even if the server or database is compromised, attackers cannot read user conversations because messages are encrypted end to end on the client.
 
@@ -26,3 +28,7 @@ We built a communication system where backend compromise does not automatically 
 
 ## Closing Line
 Whispr rethinks secure messaging by assuming the server can fail, leak, or be attacked — and protecting user privacy anyway.
+
+## Usage Note
+
+Keep this file aligned with what has actually been built so the project story remains credible.

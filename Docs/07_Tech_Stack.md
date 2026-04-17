@@ -4,24 +4,22 @@
 - **Next.js / React**
 - TypeScript
 - Tailwind CSS
-- Socket.IO client or WebSocket client
+- Socket.IO client
 
 ## Backend
 - **Node.js**
 - Express.js
-- Socket.IO or ws
-- JWT / session-based auth
+- Socket.IO
+- Auth approach: to be finalized in implementation docs
 - Zod or Joi for validation
 
 ## Database
-Choose one:
+Current direction:
 - **PostgreSQL** for structured schema and reliability
-- **MongoDB** for faster iteration and document-based storage
 
 ## Cryptography
 - Web Crypto API
 - libsodium
-- tweetnacl
 - crypto module for secure server-side helpers where needed
 
 ## Infrastructure
@@ -31,7 +29,7 @@ Choose one:
 - Supabase / Neon / Mongo Atlas for managed database
 
 ## Developer Tooling
-- Prisma or Drizzle ORM
+- ORM direction: Prisma
 - Postman / Bruno
 - ESLint
 - Prettier
@@ -43,3 +41,7 @@ Choose one:
 - PostgreSQL + Prisma
 - Socket.IO
 - Web Crypto API
+
+## Implementation Note
+
+This file documents the selected direction for the project. Dependencies and scripts in the repository may still lag behind this target architecture while the codebase is being built out.

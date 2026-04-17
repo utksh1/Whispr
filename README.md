@@ -1,6 +1,6 @@
-# 🤫 Whispr
+# Whispr
 
-**Secure, End-to-End Encrypted Communication for the Modern Web.**
+**Secure, end-to-end encrypted communication for a zero-trust backend model.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/utksh1/Whispr.svg?style=social)](https://github.com/utksh1/Whispr)
@@ -9,7 +9,24 @@ Whispr is an end-to-end encrypted (E2EE) messaging platform designed on the prin
 
 ---
 
-## 🏗️ System Architecture
+## What Whispr Is
+
+Whispr is an end-to-end encrypted messaging project designed around a simple assumption: the backend may fail, leak, or be compromised, and user privacy should still hold.
+
+The repository currently contains:
+
+- a `client/` Next.js application
+- a `server/` Express and Socket.IO service
+- a `Docs/` directory describing the target architecture, security model, and roadmap
+
+Service-specific setup:
+
+- [`client/README.md`](./client/README.md)
+- [`server/README.md`](./server/README.md)
+
+Some documentation describes the intended system design beyond what is already implemented in code. That distinction is deliberate and important for contributors.
+
+## System Architecture
 
 Whispr uses a decoupled architecture where all cryptographic operations are offloaded to the client.
 
@@ -37,45 +54,90 @@ graph TD
 
 ---
 
-## ✨ Key Features
+## Design Goals
 
-- 🔒 **True E2EE**: Messages are encrypted on the sender's device and decrypted only on the receiver's.
-- 🚫 **Zero-Knowledge Backend**: The server never sees plaintext, keys, or metadata that could reveal conversation content.
-- 🔑 **Secure Key Exchange**: Built-in mechanisms for public key distribution and verification.
-- ⚡ **Real-time Sync**: Low-latency message delivery via WebSockets.
-- 🛡️ **Compromise Resilience**: Designed to protect past and future messages even if the database is leaked.
+- Client-side encryption and decryption
+- Ciphertext-only message storage on the backend
+- Secure public key distribution for one-to-one messaging
+- Realtime encrypted message delivery
+- A design that remains meaningful under backend compromise
 
 ---
 
-## 🛠️ Tech Stack
+## Current Stack
 
 | Layer | Technology |
 | :--- | :--- |
-| **Frontend** | React / Next.js, Tailwind CSS |
-| **Backend** | Node.js, Express, Socket.IO |
-| **Database** | PostgreSQL + Prisma ORM |
-| **Security** | Web Crypto API, libsodium, X25519 |
+| **Frontend** | Next.js, React, TypeScript, Tailwind CSS |
+| **Backend** | Node.js, Express, Socket.IO, Zod |
+| **Database** | Planned: PostgreSQL |
+| **Security Direction** | Web Crypto API, libsodium-compatible design, X25519, HKDF, AEAD |
+
+## Local Development
+
+### Client
+
+```bash
+cd client
+npm install
+npm run dev
+```
+
+### Server
+
+```bash
+cd server
+npm install
+node index.js
+```
+
+Server health check:
+
+```bash
+curl http://localhost:4000/health
+```
 
 ---
 
-## 📖 Detailed Documentation
+## Documentation
 
-Explore deep dives into our design and security model in the [`Docs/`](./Docs) folder:
+The [`Docs/`](./Docs) folder contains the project design set:
 
-- [**Project Overview**](./Docs/01_Project_Overview.md) — Vision and value prop.
-- [**System Architecture**](./Docs/04_System_Architecture.md) — Component breakdown.
-- [**Crypto Flow**](./Docs/05_Cryptography_Security_Flow.md) — Deep dive into the math.
-- [**Tech Stack**](./Docs/07_Tech_Stack.md) — Implementation details.
-- [**API Design**](./Docs/09_API_Design.md) — Endpoint specifications.
+Start with [`Docs/README.md`](./Docs/README.md) for the document map and documentation rules.
+
+- [**Project Overview**](./Docs/01_Project_Overview.md)
+- [**Problem Statement**](./Docs/02_Problem_Statement.md)
+- [**Core Features**](./Docs/03_Core_Features.md)
+- [**System Architecture**](./Docs/04_System_Architecture.md)
+- [**Cryptography and Security Flow**](./Docs/05_Cryptography_Security_Flow.md)
+- [**Threat Model**](./Docs/06_Threat_Model.md)
+- [**Tech Stack**](./Docs/07_Tech_Stack.md)
+- [**Database Design**](./Docs/08_Database_Design.md)
+- [**API Design**](./Docs/09_API_Design.md)
+- [**Development Roadmap**](./Docs/10_Development_Roadmap.md)
+- [**Demo Flow**](./Docs/11_Demo_Flow.md)
+- [**Pitch Notes**](./Docs/12_Pitch_Notes.md)
+
+## Contributing
+
+Contributor guidance lives in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+
+Use it for:
+
+- local setup
+- development expectations
+- validation steps
+- pull request standards
+- documentation update rules
 
 ---
 
-## 🚀 Vision
+## Vision
 
 Most messaging systems rely on backend trust. Whispr is built on a different assumption: **the backend may fail, leak, or be compromised.** User privacy should still hold.
 
 ---
 
-## ⚖️ License
+## License
 
 Distributed under the MIT License. See `LICENSE` for more information.

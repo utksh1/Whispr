@@ -44,8 +44,12 @@ This means:
 7. Receiver decrypts message locally
 
 ## Architecture Style
-- Frontend: React / Next.js
+- Frontend: Next.js / React / TypeScript
 - Backend: Node.js / Express
-- Realtime Layer: WebSocket / Socket.IO
-- Database: PostgreSQL or MongoDB
-- Crypto Layer: Web Crypto API + libsodium/tweetnacl
+- Realtime Layer: Socket.IO
+- Database direction: PostgreSQL
+- Crypto Layer: Web Crypto API with modern elliptic-curve and AEAD primitives
+
+## Implementation Note
+
+This document describes the target system architecture. The current repository is still moving toward this design and does not yet implement every component listed here.

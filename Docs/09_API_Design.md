@@ -2,6 +2,8 @@
 
 This document outlines the RESTful API endpoints for the Whispr backend.
 
+This is a target API design. The current backend implementation is earlier-stage and does not yet expose all endpoints described here.
+
 ## 🔐 Authentication
 
 ### `POST /auth/register`
@@ -10,10 +12,12 @@ Create a new user account.
   ```json
   {
     "username": "alice",
-    "password": "hashed_password",
+    "password": "plaintext_password_sent_over_tls",
     "publicKey": "base64_encoded_x25519_pubkey"
   }
   ```
+
+The backend should hash the password before storage. Clients should not pre-hash passwords unless the full protocol is intentionally designed around that behavior.
 
 ### `POST /auth/login`
 Authenticate and return a session token.
@@ -59,6 +63,8 @@ Send an encrypted message payload. The server acts as a blind relay.
   }
   ```
 
+Depending on the final integrity design, the payload may also include a signature, key identifier, message version, or replay-protection field.
+
 ### `GET /messages/:conversationId`
 Fetch encrypted messages for a specific conversation.
 - **Response:**
@@ -89,3 +95,4 @@ Fetch encrypted messages for a specific conversation.
 - **Payload Validation:** Use Zod/Joi to enforce strict schemas.
 - **Privacy First:** The server MUST NOT log ciphertext or any metadata that could be used for fingerprinting.
 - **Rate Limiting:** Protect all endpoints against brute-force and DoS attacks.
+- **Password Storage:** Store only salted password hashes, never plaintext or reversible encrypted passwords.
