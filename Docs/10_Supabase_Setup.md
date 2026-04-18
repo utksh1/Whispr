@@ -33,6 +33,13 @@ If you use a preview deployment or custom domain, add that exact origin and `/ap
 
 Enable email/password sign-in in Supabase Auth if you want the built-in register/login form to work.
 
+For local demos, turn off email confirmation:
+- Supabase Dashboard → Authentication → Sign In / Providers → Email
+- Disable `Confirm email`
+- Save changes
+
+Why: Supabase's built-in email sender is intentionally limited. If confirmation emails are enabled and you create several test users, signup can fail with `Email rate limit exceeded` / `over_email_send_rate_limit`. For production, keep email confirmation on and configure custom SMTP under Authentication email settings, then adjust Auth rate limits in Authentication → Rate Limits.
+
 ### 3. Google OAuth
 
 Enable the Google provider in Supabase Auth and configure the Google Cloud OAuth credentials there.

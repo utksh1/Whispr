@@ -34,7 +34,9 @@ export function ChatWindow({ peer, messages, messageDraft, onMessageChange, onSe
           </div>
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-on-surface">{peer?.username || "Whispr"}</h2>
-            <p className="text-sm text-on-surface-variant font-light">Quietly listening...</p>
+            <p className={`text-sm font-light ${peer?.hasPublicKey ? "text-emerald-600" : "text-on-surface-variant"}`}>
+              {peer?.hasPublicKey ? "Encrypted connection ready" : "Waiting for secure key..."}
+            </p>
           </div>
         </div>
         <div className="flex gap-4">
@@ -107,7 +109,7 @@ export function ChatWindow({ peer, messages, messageDraft, onMessageChange, onSe
           />
           <button 
             type="submit"
-            disabled={!messageDraft.trim() || isBusy}
+            disabled={!messageDraft.trim() || isBusy || !peer?.hasPublicKey}
             className="bg-primary hover:bg-primary-dim text-on-primary rounded-full w-10 h-10 flex items-center justify-center transition-colors shadow-[0_5px_15px_rgba(91,97,80,0.2)] disabled:opacity-50"
           >
             <Icon name="send" className="text-sm" />

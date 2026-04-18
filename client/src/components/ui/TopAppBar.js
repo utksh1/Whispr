@@ -4,7 +4,7 @@ import { Icon } from "@/components/ui/Icon";
 
 export function TopAppBar() {
   return (
-    <header className="fixed inset-x-0 top-0 z-50">
+    <header className="w-full shrink-0">
       <div className="flex h-16 w-full items-center justify-between border-b border-emerald-900/10 bg-white/95 px-6 shadow-sm backdrop-blur-md">
         <div className="flex items-center gap-4 sm:gap-5">
           <div className="leading-none">

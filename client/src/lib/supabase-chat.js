@@ -121,6 +121,17 @@ function conversationKeyFor(leftUserId, rightUserId) {
 }
 
 export function readableSupabaseError(error) {
+  const errorText = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
+
+  if (
+    error?.status === 429 ||
+    error?.code === "over_email_send_rate_limit" ||
+    errorText.includes("email rate limit") ||
+    errorText.includes("rate limit exceeded")
+  ) {
+    return "Supabase has rate-limited auth emails for this project. For local demos, disable email confirmations in Supabase Auth settings, or configure custom SMTP and raise the email rate limit.";
+  }
+
   if (error?.message === "username_generation_failed") {
     return "Whispr could not reserve a unique username for this Supabase account yet. Try another username or update your Supabase profile name.";
   }
@@ -559,6 +570,25 @@ export function subscribeToSupabaseMessages(onChange) {
         event: "*",
         schema: "public",
         table: "messages",
+      },
+      onChange
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
+export function subscribeToSupabaseProfiles(onChange) {
+  const channel = supabase
+    .channel("whispr-profiles")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "profiles",
       },
       onChange
     )

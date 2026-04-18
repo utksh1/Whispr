@@ -16,6 +16,8 @@ import {
   readableSupabaseError,
   registerWithSupabase,
   subscribeToSupabaseMessages,
+  subscribeToSupabaseProfiles,
+  uploadPublicKeyForUser,
 } from "@/lib/supabase-chat";
 import {
   decryptIdentityBackup,
@@ -217,6 +219,23 @@ export default function AppSurface() {
     refreshContacts();
   }, [accountUser?.$id, refreshContacts]);
 
+  useEffect(() => {
+    if (!accountUser || !profile || !identity.ready || !identity.keyPair) return;
+    
+    if (!isIdentityPublicKeyUploaded(identity, profile)) {
+      uploadPublicKeyForUser({
+        user: accountUser,
+        profile,
+        publicKey: identity.publicKey,
+        keyId: identity.currentKeyId
+      }).then(updatedProfile => {
+        setProfile(updatedProfile);
+      }).catch(err => {
+        console.error("[auth] Identity sync failed:", err);
+      });
+    }
+  }, [accountUser, profile, identity]);
+
   const refreshConversation = useCallback(async () => {
     const currentUser = accountUserRef.current;
     const currentProfile = profileRef.current;
@@ -256,13 +275,21 @@ export default function AppSurface() {
 
   useEffect(() => {
     if (!accountUser) return undefined;
-    const unsubscribe = subscribeToSupabaseMessages(() => refreshConversation());
-    const intervalId = window.setInterval(refreshConversation, 8000);
+    const unsubscribeMessages = subscribeToSupabaseMessages(() => refreshConversation());
+    const unsubscribeProfiles = subscribeToSupabaseProfiles(() => refreshContacts());
+    
+    // Fallback polling for extra reliability
+    const intervalId = window.setInterval(() => {
+      refreshConversation();
+      refreshContacts();
+    }, 10000);
+
     return () => {
-      unsubscribe?.();
+      unsubscribeMessages?.();
+      unsubscribeProfiles?.();
       window.clearInterval(intervalId);
     };
-  }, [accountUser, refreshConversation]);
+  }, [accountUser, refreshConversation, refreshContacts]);
 
   async function restoreBackupIfAvailable(user, password, fallbackIdentity) {
     try {
@@ -612,7 +639,7 @@ export default function AppSurface() {
       ) : (
         <>
           <TopAppBar />
-          <main className="flex-1 flex overflow-hidden pt-16 pb-24 md:pb-0 w-full">
+          <main className="flex-1 flex overflow-hidden pb-24 md:pb-0 w-full">
             <Sidebar 
               contacts={contacts} 
               selectedPeer={selectedPeer} 
