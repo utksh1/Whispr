@@ -10,7 +10,9 @@ const SUPABASE_SECRET_KEY =
   "";
 
 export function isDemoAdminEnabled() {
-  return process.env.NODE_ENV !== "production" || process.env.ENABLE_DEMO_ADMIN === "true";
+  const flag = process.env.ENABLE_DEMO_ADMIN?.trim().replace(/^["']|["']$/g, "").toLowerCase();
+
+  return process.env.NODE_ENV !== "production" || flag === "true" || flag === "1";
 }
 
 export function getSupabaseAdminClient() {
