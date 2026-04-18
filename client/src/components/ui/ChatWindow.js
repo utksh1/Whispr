@@ -28,7 +28,10 @@ export function ChatWindow({ peer, messages, messageDraft, onMessageChange, onSe
     <section className="flex-1 flex flex-col bg-surface relative overflow-hidden">
       {/* Chat Header */}
       <div className="px-8 py-6 flex items-center justify-between z-10 bg-surface/80 backdrop-blur-md">
-        <div className="flex items-center gap-4">
+        <div 
+          className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={() => alert(`Viewing profile for ${peer?.username || "Whispr"}`)}
+        >
           <div className="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold">
             {peer?.username?.[0]?.toUpperCase() || "W"}
           </div>
@@ -40,10 +43,20 @@ export function ChatWindow({ peer, messages, messageDraft, onMessageChange, onSe
           </div>
         </div>
         <div className="flex gap-4">
-          <button type="button" className="text-outline cursor-pointer hover:text-on-surface transition-colors" aria-label="Search conversation">
+          <button 
+            type="button" 
+            onClick={() => alert("Search feature coming soon!")}
+            className="text-outline cursor-pointer hover:text-on-surface transition-colors" 
+            aria-label="Search conversation"
+          >
             <Icon name="search" className="text-2xl" />
           </button>
-          <button type="button" className="text-outline cursor-pointer hover:text-on-surface transition-colors" aria-label="Conversation info">
+          <button 
+            type="button" 
+            onClick={() => alert("Conversation details coming soon!")}
+            className="text-outline cursor-pointer hover:text-on-surface transition-colors" 
+            aria-label="Conversation info"
+          >
             <Icon name="info" className="text-2xl" />
           </button>
         </div>
@@ -97,9 +110,10 @@ export function ChatWindow({ peer, messages, messageDraft, onMessageChange, onSe
         className="bg-surface z-10"
       >
         <div className="flex items-center gap-4 bg-surface px-6 py-4 border-t border-outline-variant/20 focus-within:bg-surface-container-low transition-all">
-          <button type="button" className="text-outline cursor-pointer hover:text-on-surface transition-colors" aria-label="Add attachment">
+          <label className="text-outline cursor-pointer hover:text-on-surface transition-colors" aria-label="Add attachment">
             <Icon name="add" className="text-2xl" />
-          </button>
+            <input type="file" className="hidden" onChange={(e) => alert("File upload coming soon: " + e.target.files[0]?.name)} />
+          </label>
           <input 
             className="flex-1 bg-transparent border-none focus:ring-0 text-on-surface font-body placeholder:text-on-surface-variant/50" 
             placeholder="Whisper something..." 

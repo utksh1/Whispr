@@ -94,7 +94,10 @@ export default function ContactsPage() {
                     <span className={`text-[10px] uppercase tracking-widest px-3 py-1 rounded-full ${contact.hasPublicKey ? "bg-primary/10 text-primary" : "bg-outline-variant/20 text-on-surface-variant"}`}>
                       {contact.hasPublicKey ? "E2EE Enabled" : "Keys Pending"}
                     </span>
-                    <button className="bg-primary text-on-primary w-10 h-10 rounded-full flex items-center justify-center hover:bg-primary-dim transition-colors shadow-lg shadow-primary/20">
+                    <button 
+                      onClick={() => router.push("/app")}
+                      className="bg-primary text-on-primary w-10 h-10 rounded-full flex items-center justify-center hover:bg-primary-dim transition-colors shadow-lg shadow-primary/20"
+                    >
                       <Icon name="chat_bubble" className="text-sm" />
                     </button>
                   </div>

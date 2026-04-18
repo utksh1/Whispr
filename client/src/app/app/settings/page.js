@@ -53,10 +53,10 @@ export default function SettingsPage() {
                 <Icon name="key" className="text-2xl" />
                 <span>Security</span>
               </Link>
-              <Link href="/app/settings" className="flex items-center gap-3 p-4 hover:bg-surface-container-highest rounded-2xl transition-colors cursor-pointer text-on-surface-variant font-medium">
+              <button onClick={() => alert("Appearance settings coming soon!")} className="flex items-center gap-3 p-4 hover:bg-surface-container-highest rounded-2xl transition-colors cursor-pointer text-on-surface-variant font-medium">
                 <Icon name="palette" className="text-2xl" />
                 <span>Appearance</span>
-              </Link>
+              </button>
               <Link href="/app/help" className="flex items-center gap-3 p-4 hover:bg-surface-container-highest rounded-2xl transition-colors cursor-pointer text-on-surface-variant font-medium">
                 <Icon name="help_outline" className="text-2xl" />
                 <span>Help & FAQ</span>
@@ -105,7 +105,10 @@ export default function SettingsPage() {
 
               {/* Actions */}
               <div className="space-y-3">
-                <button className="w-full text-left p-6 bg-surface-container-low hover:bg-surface-container-high transition-colors rounded-[2rem] flex items-center justify-between">
+                <button 
+                  onClick={() => alert("Key pair sync coming soon!")}
+                  className="w-full text-left p-6 bg-surface-container-low hover:bg-surface-container-high transition-colors rounded-[2rem] flex items-center justify-between"
+                >
                   <div>
                     <h4 className="font-bold">Sync New Key Pair</h4>
                     <p className="text-sm text-on-surface-variant font-light">Rotate your local encryption keys for better security.</p>
