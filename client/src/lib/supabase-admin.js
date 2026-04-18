@@ -1,16 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
+import { normalizeEnvironmentValue } from "./env";
 
 const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
+  normalizeEnvironmentValue(process.env.NEXT_PUBLIC_SUPABASE_URL) ||
   "https://lptfbgohubujthjnerwm.supabase.co";
 
 const SUPABASE_SECRET_KEY =
-  process.env.SUPABASE_SECRET_KEY?.trim() ||
-  process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+  normalizeEnvironmentValue(process.env.SUPABASE_SECRET_KEY) ||
+  normalizeEnvironmentValue(process.env.SUPABASE_SERVICE_ROLE_KEY) ||
   "";
 
 export function isDemoAdminEnabled() {
-  const flag = process.env.ENABLE_DEMO_ADMIN?.trim().replace(/^["']|["']$/g, "").toLowerCase();
+  const flag = normalizeEnvironmentValue(process.env.ENABLE_DEMO_ADMIN).toLowerCase();
 
   return process.env.NODE_ENV !== "production" || flag === "true" || flag === "1";
 }

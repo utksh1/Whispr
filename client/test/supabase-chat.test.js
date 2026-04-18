@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMock = {
   getUser: vi.fn(),
+  getSession: vi.fn(),
+  onAuthStateChange: vi.fn(),
   signUp: vi.fn(),
   signInWithPassword: vi.fn(),
   signInWithOAuth: vi.fn(),
@@ -30,6 +32,7 @@ function makeBuilder(result = { data: null, error: null }) {
   const builder = {
     select: vi.fn(() => builder),
     insert: vi.fn(() => builder),
+    delete: vi.fn(() => builder),
     update: vi.fn(() => builder),
     upsert: vi.fn(() => builder),
     eq: vi.fn(() => builder),
@@ -49,6 +52,8 @@ describe("supabase chat helpers", () => {
     vi.resetModules();
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "test-publishable-key";
     authMock.getUser.mockReset();
+    authMock.getSession.mockReset();
+    authMock.onAuthStateChange.mockReset();
     authMock.signUp.mockReset();
     authMock.signInWithPassword.mockReset();
     authMock.signInWithOAuth.mockReset();
@@ -74,8 +79,12 @@ describe("supabase chat helpers", () => {
   });
 
   it("returns a normalized authenticated user and null when signed out", async () => {
-    authMock.getUser.mockResolvedValueOnce({
-      data: { user: { id: "user-1", email: "alice@example.com", user_metadata: { name: "Alice" } } },
+    authMock.getSession.mockResolvedValueOnce({
+      data: {
+        session: {
+          user: { id: "user-1", email: "alice@example.com", user_metadata: { name: "Alice" } },
+        },
+      },
       error: null,
     });
 
@@ -86,6 +95,10 @@ describe("supabase chat helpers", () => {
       name: "Alice",
     });
 
+    authMock.getSession.mockResolvedValueOnce({
+      data: { session: null },
+      error: null,
+    });
     authMock.getUser.mockResolvedValueOnce({
       data: { user: null },
       error: { status: 401 },
@@ -95,6 +108,7 @@ describe("supabase chat helpers", () => {
 
   it("creates a profile and falls back when the first username conflicts", async () => {
     const getProfileBuilder = makeBuilder({ data: null, error: null });
+    const raceCheckBuilder = makeBuilder({ data: null, error: null });
     const conflictingInsert = makeBuilder({ data: null, error: { code: "23505" } });
     const successfulInsert = makeBuilder({
       data: {
@@ -114,6 +128,7 @@ describe("supabase chat helpers", () => {
     fromMock
       .mockReturnValueOnce(getProfileBuilder)
       .mockReturnValueOnce(conflictingInsert)
+      .mockReturnValueOnce(raceCheckBuilder)
       .mockReturnValueOnce(successfulInsert);
 
     const { ensureProfile } = await import("../src/lib/supabase-chat");
@@ -128,6 +143,7 @@ describe("supabase chat helpers", () => {
 
     expect(profile.username).toBe("alice-123456");
     expect(conflictingInsert.insert).toHaveBeenCalled();
+    expect(raceCheckBuilder.maybeSingle).toHaveBeenCalled();
     expect(successfulInsert.insert).toHaveBeenCalled();
   });
 
@@ -307,16 +323,38 @@ describe("supabase chat helpers", () => {
     ]);
   });
 
+  it("deletes a conversation by conversation key", async () => {
+    const deleteBuilder = makeBuilder({ data: null, error: null });
+    fromMock.mockReturnValueOnce(deleteBuilder);
+
+    const { deleteConversationMessages } = await import("../src/lib/supabase-chat");
+    await expect(deleteConversationMessages("self-id", "peer-id")).resolves.toBeUndefined();
+
+    expect(deleteBuilder.delete).toHaveBeenCalled();
+    expect(deleteBuilder.eq).toHaveBeenCalledWith("conversation_key", "peer-id_self-id");
+  });
+
   it("subscribes to Supabase realtime and signs out safely", async () => {
+    const unsubscribeMock = vi.fn();
+    authMock.onAuthStateChange.mockReturnValueOnce({
+      data: {
+        subscription: {
+          unsubscribe: unsubscribeMock,
+        },
+      },
+    });
     onMock.mockReturnValue({
       subscribe: subscribeMock,
     });
     authMock.signOut.mockResolvedValueOnce({ error: null });
 
-    const { subscribeToSupabaseMessages, logoutFromSupabase } = await import(
+    const { subscribeToSupabaseAuth, subscribeToSupabaseMessages, logoutFromSupabase } = await import(
       "../src/lib/supabase-chat"
     );
     const onChange = vi.fn();
+    const unsubscribeAuth = subscribeToSupabaseAuth(onChange);
+    unsubscribeAuth();
+    expect(unsubscribeMock).toHaveBeenCalled();
 
     const unsubscribe = subscribeToSupabaseMessages(onChange);
     expect(channelMock).toHaveBeenCalledWith("whispr-messages");

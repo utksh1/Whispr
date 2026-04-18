@@ -39,12 +39,31 @@ async function candidatePeerPublicKeys({ username, keyId, resolvePublicKey }) {
   return uniqueValues(candidates);
 }
 
+function createCachedPublicKeyResolver(resolvePublicKey) {
+  const cache = new Map();
+
+  return async ({ username, keyId }) => {
+    const cacheKey = `${username || ""}:${keyId || "active"}`;
+
+    if (!cache.has(cacheKey)) {
+      cache.set(
+        cacheKey,
+        Promise.resolve().then(() => resolvePublicKey({ username, keyId }))
+      );
+    }
+
+    return cache.get(cacheKey);
+  };
+}
+
 export async function decryptConversationMessages({
   messages,
   selfUsername,
   selfIdentity,
   resolvePublicKey,
 }) {
+  const cachedResolvePublicKey = createCachedPublicKeyResolver(resolvePublicKey);
+
   return Promise.all(
     messages.map(async (message) => {
       try {
@@ -56,7 +75,7 @@ export async function decryptConversationMessages({
         const peerPublicKeys = await candidatePeerPublicKeys({
           username: peerUsername,
           keyId: peerKeyId,
-          resolvePublicKey,
+          resolvePublicKey: cachedResolvePublicKey,
         });
 
         if (localKeyEntries.length === 0 || peerPublicKeys.length === 0) {

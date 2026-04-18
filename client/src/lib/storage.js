@@ -20,6 +20,11 @@ export function writeStoredJson(key, value) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
+export function buildScopedStorageKey(baseKey, scope) {
+  const safeScope = String(scope || "").trim();
+  return safeScope ? `${baseKey}:${safeScope}` : baseKey;
+}
+
 export function clearStoredJson(key) {
   if (typeof window === "undefined") {
     return;

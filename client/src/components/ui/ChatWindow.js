@@ -3,7 +3,17 @@
 import { useEffect, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
 
-export function ChatWindow({ peer, messages, messageDraft, onMessageChange, onSendMessage, isBusy }) {
+export function ChatWindow({
+  peer,
+  messages,
+  messageDraft,
+  onMessageChange,
+  onSendMessage,
+  onDeleteConversation,
+  isBusy,
+  canSend = false,
+  isDeletingConversation = false,
+}) {
   const scrollRef = useRef(null);
 
   function formatMessageTime(message) {
@@ -58,6 +68,15 @@ export function ChatWindow({ peer, messages, messageDraft, onMessageChange, onSe
             aria-label="Conversation info"
           >
             <Icon name="info" className="text-2xl" />
+          </button>
+          <button
+            type="button"
+            onClick={onDeleteConversation}
+            disabled={!peer?.username || isDeletingConversation}
+            className="text-outline cursor-pointer hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Delete conversation"
+          >
+            <Icon name="delete_forever" className="text-2xl" />
           </button>
         </div>
       </div>
@@ -116,14 +135,20 @@ export function ChatWindow({ peer, messages, messageDraft, onMessageChange, onSe
           </label>
           <input 
             className="flex-1 bg-transparent border-none focus:ring-0 text-on-surface font-body placeholder:text-on-surface-variant/50" 
-            placeholder="Whisper something..." 
+            placeholder={
+              !peer?.hasPublicKey
+                ? "This contact needs to publish a key first..."
+                : !canSend
+                ? "Publishing your key before sending..."
+                : "Whisper something..."
+            }
             type="text"
             value={messageDraft}
             onChange={(e) => onMessageChange(e.target.value)}
           />
           <button 
             type="submit"
-            disabled={!messageDraft.trim() || isBusy || !peer?.hasPublicKey}
+            disabled={!messageDraft.trim() || isBusy || !canSend}
             className="bg-primary hover:bg-primary-dim text-on-primary rounded-full w-10 h-10 flex items-center justify-center transition-colors shadow-[0_5px_15px_rgba(91,97,80,0.2)] disabled:opacity-50"
           >
             <Icon name="send" className="text-sm" />

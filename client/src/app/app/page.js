@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   createEncryptedMessage,
+  deleteConversationMessages,
   ensureProfile,
   getActivePublicKey,
   getCurrentSupabaseUser,
@@ -13,8 +14,11 @@ import {
   listConversationMessages,
   loginWithGoogle,
   loginWithSupabase,
+  logoutFromSupabase,
   readableSupabaseError,
   registerWithSupabase,
+  savePrivateKeyBackup,
+  subscribeToSupabaseAuth,
   subscribeToSupabaseMessages,
   subscribeToSupabaseProfiles,
   uploadPublicKeyForUser,
@@ -23,17 +27,20 @@ import {
   decryptIdentityBackup,
   encryptIdentityBackup,
   encryptMessage,
+  generateLocalIdentity,
   hydrateStoredIdentity,
   serializeIdentity,
 } from "@/lib/crypto";
 import { decryptConversationMessages } from "@/lib/chat";
-import { readStoredJson, writeStoredJson } from "@/lib/storage";
+import { buildScopedStorageKey, readStoredJson, writeStoredJson } from "@/lib/storage";
 import { TopAppBar } from "@/components/ui/TopAppBar";
 import { Sidebar } from "@/components/ui/Sidebar";
 import { ChatWindow } from "@/components/ui/ChatWindow";
 import { BottomNavBar } from "@/components/ui/BottomNavBar";
 
-const APP_IDENTITY_KEY = "whispr-supabase-identity";
+const LEGACY_APP_IDENTITY_KEY = "whispr-supabase-identity";
+const APP_IDENTITY_KEY_PREFIX = "whispr-supabase-identity";
+const APP_IDENTITY_KEY = LEGACY_APP_IDENTITY_KEY;
 
 const INITIAL_AUTH_FORM = {
   username: "",
@@ -48,6 +55,44 @@ function normalizeUsername(value) {
 
 function isIgnorableAuthScreenError(message) {
   return message === "Auth session missing!" || message === "Your session expired. Please log in again.";
+}
+
+function hasOauthCallbackParams() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const searchParams = new URLSearchParams(window.location.search);
+
+  return (
+    searchParams.has("oauth") ||
+    searchParams.has("code") ||
+    searchParams.has("state") ||
+    searchParams.has("error") ||
+    window.location.hash.includes("access_token")
+  );
+}
+
+function clearOauthCallbackUrl() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+
+function resetWorkspaceState({
+  setContacts,
+  setSelectedPeer,
+  setMessages,
+  setMessageDraft,
+  setIdentity,
+}) {
+  setContacts([]);
+  setSelectedPeer(null);
+  setMessages([]);
+  setMessageDraft("");
+  setIdentity(emptyIdentity());
 }
 
 function getResetFormState(mode, currentState) {
@@ -82,6 +127,23 @@ function emptyIdentity() {
   };
 }
 
+function getAccountIdentityStorageKey(userId) {
+  return buildScopedStorageKey(APP_IDENTITY_KEY_PREFIX, userId);
+}
+
+function canMigrateLegacyIdentity(storedIdentity, profile) {
+  if (!storedIdentity?.publicKey || !profile?.publicKey) {
+    return false;
+  }
+
+  return Boolean(
+    profile.activePublicKeyId &&
+      storedIdentity.currentKeyId &&
+      profile.activePublicKeyId === storedIdentity.currentKeyId &&
+      profile.publicKey === storedIdentity.publicKey
+  );
+}
+
 function AuthFieldCard({ children, className = "" }) {
   return (
     <div
@@ -93,6 +155,9 @@ function AuthFieldCard({ children, className = "" }) {
 }
 
 export default function AppSurface() {
+  const KEY_PUBLISH_ERROR_PREFIX =
+    "Whispr signed you in, but it could not publish your public key yet.";
+  const MAX_KEY_PUBLISH_ATTEMPTS = 3;
   const [authMode, setAuthMode] = useState("login");
   const [formState, setFormState] = useState(INITIAL_AUTH_FORM);
   const [accountUser, setAccountUser] = useState(null);
@@ -107,16 +172,22 @@ export default function AppSurface() {
   const [error, setError] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [isBooting, setIsBooting] = useState(true);
-  const authSecretRef = useRef("");
+  const [isPublishingKey, setIsPublishingKey] = useState(false);
+  const [isDeletingConversation, setIsDeletingConversation] = useState(false);
   const selectedPeerRef = useRef(null);
   const accountUserRef = useRef(null);
   const profileRef = useRef(null);
   const identityRef = useRef(identity);
   const oauthStateRef = useRef(null);
+  const keyPublishAttemptRef = useRef(0);
+  const keyPublishTimerRef = useRef(null);
+  const keyPublishInFlightRef = useRef(false);
   const pathname = usePathname();
   const router = useRouter();
   const isSessionAuthenticated = Boolean(accountUser);
   const isProfileReady = Boolean(profile);
+  const keyPublishError = error.startsWith(KEY_PUBLISH_ERROR_PREFIX) ? error : "";
+  const screenError = keyPublishError ? "" : error;
 
   useEffect(() => {
     selectedPeerRef.current = selectedPeer;
@@ -124,6 +195,14 @@ export default function AppSurface() {
     profileRef.current = profile;
     identityRef.current = identity;
   }, [selectedPeer, accountUser, profile, identity]);
+
+  useEffect(() => {
+    return () => {
+      if (keyPublishTimerRef.current) {
+        window.clearTimeout(keyPublishTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,14 +215,8 @@ export default function AppSurface() {
 
         oauthStateRef.current = oauthState;
 
-        // Robust cleanup of OAuth tokens/hashes from URL to keep the address bar clean
-        if (typeof window !== "undefined" && (oauthState || window.location.hash.includes("access_token"))) {
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-
-        const storedIdentity = readStoredJson(APP_IDENTITY_KEY);
-        const hydratedIdentity = await hydrateStoredIdentity(storedIdentity);
         const user = await getCurrentSupabaseUser();
+        let hydratedIdentity = emptyIdentity();
         let nextProfile = null;
 
         if (user) {
@@ -157,6 +230,17 @@ export default function AppSurface() {
             await new Promise((resolve) => setTimeout(resolve, 500));
             nextProfile = await ensureProfile(user);
           }
+
+          const storedIdentity = readStoredJson(getAccountIdentityStorageKey(user.id));
+          const legacyIdentity = readStoredJson(LEGACY_APP_IDENTITY_KEY);
+
+          if (storedIdentity) {
+            hydratedIdentity = await hydrateStoredIdentity(storedIdentity);
+          } else if (canMigrateLegacyIdentity(legacyIdentity, nextProfile)) {
+            hydratedIdentity = await hydrateStoredIdentity(legacyIdentity);
+          } else {
+            hydratedIdentity = await generateLocalIdentity();
+          }
         }
 
         if (cancelled) return;
@@ -165,14 +249,29 @@ export default function AppSurface() {
         setAccountUser(user);
         setProfile(nextProfile);
 
+        // Only clear callback params after auth has actually been restored or the callback failed.
+        if (
+          typeof window !== "undefined" &&
+          (user || oauthState === "google-failed") &&
+          hasOauthCallbackParams()
+        ) {
+          clearOauthCallbackUrl();
+        }
+
         if (oauthState === "google-failed") {
           setError("Google sign-in failed. Please try again.");
           setStatus("Google sign-in did not complete.");
           return;
         }
 
+        if (!user && oauthState === "google") {
+          setStatus("Completing Google sign-in...");
+        }
+
         setStatus(
-          user
+          oauthState === "google" && !user
+            ? "Completing Google sign-in..."
+            : user
             ? `Welcome back, ${nextProfile?.username || user.name}.`
             : "Log in or create an account to start a private conversation."
         );
@@ -201,11 +300,144 @@ export default function AppSurface() {
   }, [pathname, router]);
 
   useEffect(() => {
-    if (!identity.ready || !identity.keyPair) return;
-    serializeIdentity(identity).then(serialized => {
-      writeStoredJson(APP_IDENTITY_KEY, serialized);
+    const unsubscribe = subscribeToSupabaseAuth(async (user) => {
+      try {
+        if (!user) {
+          setAccountUser(null);
+          setProfile(null);
+          resetWorkspaceState({
+            setContacts,
+            setSelectedPeer,
+            setMessages,
+            setMessageDraft,
+            setIdentity,
+          });
+          keyPublishAttemptRef.current = 0;
+          setStatus("Log in or create an account to start a private conversation.");
+          return;
+        }
+
+        const nextProfile = await ensureProfile(user);
+        setAccountUser(user);
+        setProfile(nextProfile);
+        setStatus(`Welcome back, ${nextProfile?.username || user.name}.`);
+
+        if (hasOauthCallbackParams()) {
+          clearOauthCallbackUrl();
+        }
+      } catch (requestError) {
+        const nextError = readableSupabaseError(requestError);
+        setError(isIgnorableAuthScreenError(nextError) ? "" : nextError);
+      }
     });
-  }, [identity]);
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!hasOauthCallbackParams()) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      if (cancelled || !hasOauthCallbackParams()) {
+        return;
+      }
+
+      try {
+        const user = await getCurrentSupabaseUser();
+
+        if (user || window.location.hash.includes("access_token")) {
+          clearOauthCallbackUrl();
+        }
+      } catch {
+        if (window.location.hash.includes("access_token")) {
+          clearOauthCallbackUrl();
+        }
+      }
+    }, 1200);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!accountUser || !identity.ready || !identity.keyPair) return;
+    serializeIdentity(identity).then(serialized => {
+      writeStoredJson(getAccountIdentityStorageKey(accountUser.id), serialized);
+    });
+  }, [accountUser, identity]);
+
+  const syncIdentityBackup = useCallback(async (userId, nextIdentity, password) => {
+    if (!userId || !nextIdentity?.ready || !nextIdentity?.keyPair || !password) {
+      return;
+    }
+
+    try {
+      const encryptedBackup = await encryptIdentityBackup(nextIdentity, password);
+      const updatedProfile = await savePrivateKeyBackup(userId, encryptedBackup);
+      setProfile(updatedProfile);
+    } catch (requestError) {
+      console.error("[auth] encrypted backup sync failed", requestError);
+    }
+  }, []);
+
+  const publishIdentityPublicKey = useCallback(async ({ manual = false } = {}) => {
+    const currentUser = accountUserRef.current;
+    const currentProfile = profileRef.current;
+    const currentIdentity = identityRef.current;
+
+    if (!currentUser || !currentProfile || !currentIdentity.ready || !currentIdentity.keyPair) {
+      return false;
+    }
+
+    if (isIdentityPublicKeyUploaded(currentIdentity, currentProfile)) {
+      keyPublishAttemptRef.current = 0;
+      setIsPublishingKey(false);
+      return true;
+    }
+
+    if (keyPublishInFlightRef.current) {
+      return false;
+    }
+
+    keyPublishInFlightRef.current = true;
+    setIsPublishingKey(true);
+    setStatus(
+      manual
+        ? "Retrying your public key publish..."
+        : "Publishing your public key..."
+    );
+
+    try {
+      const updatedProfile = await uploadPublicKeyForUser({
+        user: currentUser,
+        profile: currentProfile,
+        publicKey: currentIdentity.publicKey,
+        keyId: currentIdentity.currentKeyId,
+      });
+
+      keyPublishAttemptRef.current = 0;
+      setProfile(updatedProfile);
+      setError((currentError) =>
+        currentError.startsWith(KEY_PUBLISH_ERROR_PREFIX) ? "" : currentError
+      );
+      setStatus(`Welcome back, ${updatedProfile?.username || currentUser.name}.`);
+      return true;
+    } catch (requestError) {
+      const readableError = readableSupabaseError(requestError);
+      setError(`${KEY_PUBLISH_ERROR_PREFIX} ${readableError}`);
+      setStatus("Signed in, but your public key still needs to be published.");
+      console.error("[auth] Identity sync failed:", requestError);
+      return false;
+    } finally {
+      keyPublishInFlightRef.current = false;
+      setIsPublishingKey(false);
+    }
+  }, []);
 
   const refreshContacts = useCallback(async () => {
     if (!accountUserRef.current) {
@@ -228,21 +460,61 @@ export default function AppSurface() {
   }, [accountUser?.id, refreshContacts]);
 
   useEffect(() => {
-    if (!accountUser || !profile || !identity.ready || !identity.keyPair) return;
-    
-    if (!isIdentityPublicKeyUploaded(identity, profile)) {
-      uploadPublicKeyForUser({
-        user: accountUser,
-        profile,
-        publicKey: identity.publicKey,
-        keyId: identity.currentKeyId
-      }).then(updatedProfile => {
-        setProfile(updatedProfile);
-      }).catch(err => {
-        console.error("[auth] Identity sync failed:", err);
-      });
+    if (!accountUser || !profile || !identity.ready || !identity.keyPair) {
+      return undefined;
     }
-  }, [accountUser, profile, identity]);
+
+    if (isIdentityPublicKeyUploaded(identity, profile)) {
+      keyPublishAttemptRef.current = 0;
+      if (keyPublishTimerRef.current) {
+        window.clearTimeout(keyPublishTimerRef.current);
+        keyPublishTimerRef.current = null;
+      }
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function syncWithRetry() {
+      const success = await publishIdentityPublicKey();
+
+      if (success || cancelled) {
+        return;
+      }
+
+      keyPublishAttemptRef.current += 1;
+
+      if (keyPublishAttemptRef.current >= MAX_KEY_PUBLISH_ATTEMPTS) {
+        return;
+      }
+
+      const nextAttempt = keyPublishAttemptRef.current + 1;
+      setStatus(`Retrying public key publish (${nextAttempt}/${MAX_KEY_PUBLISH_ATTEMPTS})...`);
+      keyPublishTimerRef.current = window.setTimeout(() => {
+        syncWithRetry();
+      }, 1500 * keyPublishAttemptRef.current);
+    }
+
+    syncWithRetry();
+
+    return () => {
+      cancelled = true;
+      if (keyPublishTimerRef.current) {
+        window.clearTimeout(keyPublishTimerRef.current);
+        keyPublishTimerRef.current = null;
+      }
+    };
+  }, [
+    accountUser,
+    identity,
+    identity.currentKeyId,
+    identity.keyPair,
+    identity.publicKey,
+    identity.ready,
+    profile,
+    profile?.activePublicKeyId,
+    publishIdentityPublicKey,
+  ]);
 
   const refreshConversation = useCallback(async () => {
     const currentUser = accountUserRef.current;
@@ -256,8 +528,13 @@ export default function AppSurface() {
     }
 
     try {
-      const activePeerKey = await getActivePublicKey(peer.username);
-      const encryptedMessages = await listConversationMessages(currentUser.id, activePeerKey.userId);
+      const peerUserId = peer.id || peer.userId;
+
+      if (!peerUserId) {
+        throw new Error("peer_not_found");
+      }
+
+      const encryptedMessages = await listConversationMessages(currentUser.id, peerUserId);
       const decryptedMessages = await decryptConversationMessages({
         messages: encryptedMessages,
         selfUsername: currentProfile.username,
@@ -345,11 +622,15 @@ export default function AppSurface() {
         hasProfile: Boolean(result.profile),
       });
 
-      authSecretRef.current = payload.password;
       setAccountUser(result.user);
       setProfile(result.profile);
-      const nextIdentity = await restoreBackupIfAvailable(result.user, payload.password, identityRef.current);
+      const storedIdentity = readStoredJson(getAccountIdentityStorageKey(result.user.id));
+      const localIdentity = storedIdentity
+        ? await hydrateStoredIdentity(storedIdentity)
+        : await generateLocalIdentity();
+      const nextIdentity = await restoreBackupIfAvailable(result.user, payload.password, localIdentity);
       setIdentity(nextIdentity);
+      await syncIdentityBackup(result.user.id, nextIdentity, payload.password);
 
       if (result.profile?.username) {
         setStatus(`Welcome back, ${result.profile.username}.`);
@@ -386,7 +667,16 @@ export default function AppSurface() {
 
   async function handleSendMessage(event) {
     event.preventDefault();
-    if (!selectedPeer || !messageDraft.trim()) return;
+    const draft = messageDraft.trim();
+    if (!selectedPeer || !draft) return;
+
+    if (!isIdentityPublicKeyUploaded(identityRef.current, profileRef.current)) {
+      setError(
+        `${KEY_PUBLISH_ERROR_PREFIX} Wait for your key publish to finish before sending messages.`
+      );
+      return;
+    }
+
     setError("");
     setIsBusy(true);
     try {
@@ -394,7 +684,7 @@ export default function AppSurface() {
       const currentIdentity = identityRef.current;
       const receiver = await getActivePublicKey(selectedPeer.username);
       const encryptedMessage = await encryptMessage({
-        plaintext: messageDraft,
+        plaintext: draft,
         senderIdentity: currentIdentity,
         receiverPublicKey: receiver.publicKey,
       });
@@ -404,7 +694,7 @@ export default function AppSurface() {
         receiver,
         encryptedMessage,
       });
-      setIsBusy(false);
+      setMessageDraft("");
     } catch (e) {
       setError(readableSupabaseError(e));
     } finally {
@@ -418,11 +708,54 @@ export default function AppSurface() {
       await logoutFromSupabase();
       setAccountUser(null);
       setProfile(null);
+      resetWorkspaceState({
+        setContacts,
+        setSelectedPeer,
+        setMessages,
+        setMessageDraft,
+        setIdentity,
+      });
+      keyPublishAttemptRef.current = 0;
+      setError("");
+      setStatus("Log in or create an account to start a private conversation.");
       router.replace("/");
     } catch (e) {
       setError(readableSupabaseError(e));
     } finally {
       setIsBusy(false);
+    }
+  }
+
+  async function handleDeleteConversation() {
+    const currentUser = accountUserRef.current;
+    const peer = selectedPeerRef.current;
+
+    if (!currentUser || !peer?.username) {
+      return;
+    }
+
+    if (!window.confirm(`Delete the chat with ${peer.username}? This removes the conversation for your account.`)) {
+      return;
+    }
+
+    setError("");
+    setIsDeletingConversation(true);
+
+    try {
+      const peerUserId = peer.id || peer.userId;
+
+      if (!peerUserId) {
+        throw new Error("peer_not_found");
+      }
+
+      await deleteConversationMessages(currentUser.id, peerUserId);
+      setMessages([]);
+      setStatus(`Deleted the chat with ${peer.username}.`);
+      refreshContacts();
+    } catch (requestError) {
+      setError(readableSupabaseError(requestError));
+    } finally {
+      setIsDeletingConversation(false);
     }
   }
 
@@ -645,7 +978,11 @@ export default function AppSurface() {
                     Biometric or OAuth identity required. Encryption keys remain local.
                   </p>
 
-                  {error && <p className="mt-4 text-sm text-red-100 bg-red-400/20 p-4 rounded-2xl w-full text-center">{error}</p>}
+                  {screenError ? (
+                    <p className="mt-4 text-sm text-red-100 bg-red-400/20 p-4 rounded-2xl w-full text-center">
+                      {screenError}
+                    </p>
+                  ) : null}
                 </form>
               </div>
             </div>
@@ -659,14 +996,46 @@ export default function AppSurface() {
             <p className="mt-4 text-sm leading-7 text-slate-300">
               Your account is authenticated. Whispr is restoring your chat profile before opening the inbox.
             </p>
-            {error ? (
-              <p className="mt-6 rounded-2xl bg-red-400/20 p-4 text-sm text-red-100">{error}</p>
+            {screenError ? (
+              <p className="mt-6 rounded-2xl bg-red-400/20 p-4 text-sm text-red-100">{screenError}</p>
             ) : null}
           </div>
         </section>
       ) : (
         <>
           <TopAppBar onLogout={handleLogout} />
+          {(!isIdentityPublicKeyUploaded(identity, profile) || isPublishingKey || keyPublishError) ? (
+            <section className="border-b border-outline-variant/40 bg-surface-container/80 px-4 py-3">
+              <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="text-sm text-on-surface">
+                  <p className="font-semibold">
+                    {isPublishingKey
+                      ? "Publishing your public key..."
+                      : isIdentityPublicKeyUploaded(identity, profile)
+                      ? "Workspace ready."
+                      : "Your public key is not published yet."}
+                  </p>
+                  {keyPublishError ? (
+                    <p className="mt-1 text-on-surface-variant">{keyPublishError}</p>
+                  ) : !isIdentityPublicKeyUploaded(identity, profile) ? (
+                    <p className="mt-1 text-on-surface-variant">
+                      Other members will see this account as &quot;no key&quot; until publish finishes.
+                    </p>
+                  ) : null}
+                </div>
+                {!isIdentityPublicKeyUploaded(identity, profile) ? (
+                  <button
+                    type="button"
+                    onClick={() => publishIdentityPublicKey({ manual: true })}
+                    disabled={isPublishingKey}
+                    className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isPublishingKey ? "Publishing..." : "Retry Key Publish"}
+                  </button>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
           <main className="flex-1 flex overflow-hidden pb-24 md:pb-0 w-full">
             <Sidebar 
               contacts={contacts} 
@@ -679,7 +1048,13 @@ export default function AppSurface() {
               messageDraft={messageDraft}
               onMessageChange={setMessageDraft}
               onSendMessage={handleSendMessage}
+              onDeleteConversation={handleDeleteConversation}
               isBusy={isBusy}
+              canSend={Boolean(
+                selectedPeer?.hasPublicKey &&
+                  isIdentityPublicKeyUploaded(identity, profile)
+              )}
+              isDeletingConversation={isDeletingConversation}
             />
           </main>
           <BottomNavBar />

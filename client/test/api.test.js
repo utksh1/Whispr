@@ -52,4 +52,42 @@ describe("api client", () => {
       auth: { token: "abc" },
     });
   });
+
+  it("normalizes malformed Vercel env strings before using the API URL", async () => {
+    process.env.NEXT_PUBLIC_API_URL = "N\\nhttps://server.utksh.in\\n";
+    process.env.NEXT_PUBLIC_DISABLE_REALTIME = "true\\n";
+    fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    });
+
+    const { getCurrentUser, createSocketClient } = await import("../src/lib/api");
+    await getCurrentUser("jwt-token");
+
+    expect(fetch).toHaveBeenCalledWith("https://server.utksh.in/auth/me", {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer jwt-token",
+      },
+    });
+    expect(createSocketClient("abc")).toBeNull();
+  });
+
+  it("normalizes malformed stored bearer tokens before making a request", async () => {
+    process.env.NEXT_PUBLIC_API_URL = "https://server.utksh.in";
+    fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    });
+
+    const { getCurrentUser } = await import("../src/lib/api");
+    await getCurrentUser("jwt-token\\n");
+
+    expect(fetch).toHaveBeenCalledWith("https://server.utksh.in/auth/me", {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer jwt-token",
+      },
+    });
+  });
 });

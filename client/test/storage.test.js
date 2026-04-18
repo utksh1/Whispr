@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { readStoredJson, writeStoredJson, clearStoredJson } from "../src/lib/storage";
+import {
+  buildScopedStorageKey,
+  clearStoredJson,
+  readStoredJson,
+  writeStoredJson,
+} from "../src/lib/storage";
 
 function createLocalStorageMock() {
   const store = new Map();
@@ -38,5 +43,10 @@ describe("storage helpers", () => {
     writeStoredJson("token", { value: "abc" });
     clearStoredJson("token");
     expect(readStoredJson("token")).toBeNull();
+  });
+
+  it("builds scoped storage keys", () => {
+    expect(buildScopedStorageKey("identity", "user-123")).toBe("identity:user-123");
+    expect(buildScopedStorageKey("identity", "")).toBe("identity");
   });
 });

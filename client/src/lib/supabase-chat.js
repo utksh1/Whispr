@@ -204,6 +204,20 @@ async function createProfile(user, requestedUsername = "") {
 }
 
 export async function getCurrentSupabaseUser() {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+  if (sessionError) {
+    if (isAuthMissing(sessionError)) {
+      return null;
+    }
+
+    throw sessionError;
+  }
+
+  if (sessionData?.session?.user) {
+    return normalizeAuthUser(sessionData.session.user);
+  }
+
   const { data, error } = await supabase.auth.getUser();
 
   if (error) {
@@ -215,6 +229,16 @@ export async function getCurrentSupabaseUser() {
   }
 
   return normalizeAuthUser(data.user);
+}
+
+export function subscribeToSupabaseAuth(onChange) {
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    onChange(normalizeAuthUser(session?.user || null));
+  });
+
+  return () => {
+    data?.subscription?.unsubscribe();
+  };
 }
 
 export async function getProfile(userId) {
@@ -568,6 +592,17 @@ export async function listConversationMessages(selfUserId, peerUserId) {
   }
 
   return (data || []).map(mapMessageRow);
+}
+
+export async function deleteConversationMessages(selfUserId, peerUserId) {
+  const { error } = await supabase
+    .from("messages")
+    .delete()
+    .eq("conversation_key", conversationKeyFor(selfUserId, peerUserId));
+
+  if (error) {
+    throw error;
+  }
 }
 
 export function subscribeToSupabaseMessages(onChange) {

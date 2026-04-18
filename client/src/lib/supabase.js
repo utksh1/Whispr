@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
+import { normalizeEnvironmentValue } from "./env";
 
 const getSupabaseUrl = () => {
-  let envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  let envUrl = normalizeEnvironmentValue(process.env.NEXT_PUBLIC_SUPABASE_URL);
   if (envUrl && envUrl.startsWith("http")) {
     return envUrl.replace(/\/$/, "");
   }
@@ -9,18 +10,18 @@ const getSupabaseUrl = () => {
 };
 
 const getPublishableKey = () => {
-  const envKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
+  const envKey = normalizeEnvironmentValue(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
   if (envKey) return envKey;
-  // Fallback to a known key for lptfbgohubujthjnerwm if possible, 
+  // Fallback to a known key for lptfbgohubujthjnerwm if possible,
   // or return a dummy that won't crash fetch
-  return "MISSING_KEY"; 
+  return "MISSING_KEY";
 };
 
 export const SUPABASE_CONFIG = {
   url: getSupabaseUrl(),
   publishableKey: getPublishableKey(),
   projectRef:
-    process.env.NEXT_PUBLIC_SUPABASE_PROJECT_REF?.trim() ||
+    normalizeEnvironmentValue(process.env.NEXT_PUBLIC_SUPABASE_PROJECT_REF) ||
     "lptfbgohubujthjnerwm",
 };
 
@@ -38,6 +39,7 @@ export const supabase = createClient(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,
+      flowType: "pkce",
     },
   }
 );

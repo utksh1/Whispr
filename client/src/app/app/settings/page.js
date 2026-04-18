@@ -16,6 +16,7 @@ export default function SettingsPage() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const router = useRouter();
+  const hasPublishedKey = Boolean(profile?.hasPublicKey && profile?.activePublicKeyId);
 
   useEffect(() => {
     async function load() {
@@ -88,11 +89,27 @@ export default function SettingsPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-4 bg-surface-container-lowest rounded-2xl">
                     <div className="flex items-center gap-3">
-                      <Icon name="verified_user" className="text-2xl text-primary" />
+                      <Icon
+                        name={hasPublishedKey ? "verified_user" : "key_off"}
+                        className={`text-2xl ${hasPublishedKey ? "text-primary" : "text-on-surface-variant"}`}
+                      />
                       <span className="font-medium">Encryption Keys</span>
                     </div>
-                    <span className="text-xs uppercase tracking-widest text-primary font-bold">Synced</span>
+                    <span
+                      className={`text-xs uppercase tracking-widest font-bold ${
+                        hasPublishedKey ? "text-primary" : "text-on-surface-variant"
+                      }`}
+                    >
+                      {hasPublishedKey ? "Synced" : "Pending"}
+                    </span>
                   </div>
+                  {!hasPublishedKey ? (
+                    <div className="p-4 bg-surface-container-lowest rounded-2xl">
+                      <p className="text-sm text-on-surface-variant font-light">
+                        This account has not published an active public key to Supabase yet.
+                      </p>
+                    </div>
+                  ) : null}
                   <div className="flex items-center justify-between p-4 bg-surface-container-lowest rounded-2xl">
                     <div className="flex items-center gap-3">
                       <Icon name="alternate_email" className="text-2xl text-outline" />

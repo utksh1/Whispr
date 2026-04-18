@@ -1,22 +1,37 @@
 import { io } from "socket.io-client";
+import { normalizeEnvironmentValue } from "./env";
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:4000";
+  normalizeEnvironmentValue(process.env.NEXT_PUBLIC_API_URL).replace(/\/$/, "") ||
+  "http://localhost:4000";
 
 export const REALTIME_ENABLED =
-  process.env.NEXT_PUBLIC_DISABLE_REALTIME?.trim() !== "true";
+  normalizeEnvironmentValue(process.env.NEXT_PUBLIC_DISABLE_REALTIME) !== "true";
 
 async function apiRequest(path, options = {}) {
   const { token, headers, ...restOptions } = options;
+  const safeToken = normalizeEnvironmentValue(token);
+  const safeUrl = `${API_BASE_URL}${path}`;
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(headers || {}),
-    },
-    ...restOptions,
-  });
+  let response;
+
+  try {
+    response = await fetch(safeUrl, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(safeToken ? { Authorization: `Bearer ${safeToken}` } : {}),
+        ...(headers || {}),
+      },
+      ...restOptions,
+    });
+  } catch (error) {
+    const requestError = new Error(
+      `Failed to reach Whispr API at ${safeUrl}. Check NEXT_PUBLIC_API_URL and your stored session token.`
+    );
+    requestError.cause = error;
+    throw requestError;
+  }
+
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
@@ -120,10 +135,12 @@ export function createSocketClient(token) {
     return null;
   }
 
+  const safeToken = normalizeEnvironmentValue(token);
+
   return io(API_BASE_URL, {
     transports: ["websocket"],
     auth: {
-      token,
+      token: safeToken,
     },
   });
 }
