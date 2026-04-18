@@ -126,7 +126,6 @@ export default function AppSurface() {
 
   useEffect(() => {
     let cancelled = false;
-
     async function boot() {
       try {
         const oauthState =
@@ -136,8 +135,9 @@ export default function AppSurface() {
 
         oauthStateRef.current = oauthState;
 
-        if (oauthState && typeof window !== "undefined") {
-          window.history.replaceState({}, "", pathname);
+        // Robust cleanup of OAuth tokens/hashes from URL to keep the address bar clean
+        if (typeof window !== "undefined" && (oauthState || window.location.hash.includes("access_token"))) {
+          window.history.replaceState({}, document.title, window.location.pathname);
         }
 
         const storedIdentity = readStoredJson(APP_IDENTITY_KEY);
@@ -205,7 +205,7 @@ export default function AppSurface() {
       return;
     }
     try {
-      const users = await listSupabaseUsers(searchQuery, accountUserRef.current.$id);
+      const users = await listSupabaseUsers(searchQuery, accountUserRef.current.id);
       setContacts(users);
       if (!selectedPeerRef.current && users.length > 0) {
         setSelectedPeer(users.find((user) => user.hasPublicKey) || users[0]);
@@ -217,7 +217,7 @@ export default function AppSurface() {
 
   useEffect(() => {
     refreshContacts();
-  }, [accountUser?.$id, refreshContacts]);
+  }, [accountUser?.id, refreshContacts]);
 
   useEffect(() => {
     if (!accountUser || !profile || !identity.ready || !identity.keyPair) return;
@@ -249,7 +249,7 @@ export default function AppSurface() {
 
     try {
       const activePeerKey = await getActivePublicKey(peer.username);
-      const encryptedMessages = await listConversationMessages(currentUser.$id, activePeerKey.userId);
+      const encryptedMessages = await listConversationMessages(currentUser.id, activePeerKey.userId);
       const decryptedMessages = await decryptConversationMessages({
         messages: encryptedMessages,
         selfUsername: currentProfile.username,
@@ -293,16 +293,16 @@ export default function AppSurface() {
 
   async function restoreBackupIfAvailable(user, password, fallbackIdentity) {
     try {
-      const backup = await getPrivateKeyBackup(user.$id);
+      const backup = await getPrivateKeyBackup(user.id);
 
       if (!backup) {
-        console.info("[auth] no encrypted backup found", { userId: user.$id });
+        console.info("[auth] no encrypted backup found", { userId: user.id });
         return fallbackIdentity;
       }
 
       const restoredIdentity = await decryptIdentityBackup(backup, password);
       console.info("[auth] restored encrypted backup", {
-        userId: user.$id,
+        userId: user.id,
         keyCount: restoredIdentity.keyring?.length || 0,
       });
       setStatus("Restored your encrypted key backup.");
@@ -333,7 +333,7 @@ export default function AppSurface() {
         : await loginWithSupabase(payload);
       console.info("[auth] authentication succeeded", {
         mode: authMode,
-        userId: result.user?.$id,
+        userId: result.user?.id,
         hasProfile: Boolean(result.profile),
       });
 
@@ -396,8 +396,17 @@ export default function AppSurface() {
         receiver,
         encryptedMessage,
       });
-      setMessageDraft("");
-      refreshConversation();
+      setIsBusy(false);
+    }
+  }
+
+  async function handleLogout() {
+    setIsBusy(true);
+    try {
+      await logoutFromSupabase();
+      setAccountUser(null);
+      setProfile(null);
+      router.replace("/");
     } catch (e) {
       setError(readableSupabaseError(e));
     } finally {
@@ -638,7 +647,7 @@ export default function AppSurface() {
         </section>
       ) : (
         <>
-          <TopAppBar />
+          <TopAppBar onLogout={handleLogout} />
           <main className="flex-1 flex overflow-hidden pb-24 md:pb-0 w-full">
             <Sidebar 
               contacts={contacts} 

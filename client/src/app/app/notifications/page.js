@@ -4,6 +4,9 @@ import { TopAppBar } from "@/components/ui/TopAppBar";
 import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { Icon } from "@/components/ui/Icon";
 
+import { logoutFromSupabase } from "@/lib/supabase-chat";
+import { useRouter } from "next/navigation";
+
 const MOCK_NOTIFICATIONS = [
   { id: 1, type: 'security', title: 'New Key Generated', message: 'Your identity was rotated successfully for improved privacy.', time: '2h ago', icon: 'security' },
   { id: 2, type: 'mention', title: 'Mentioned in "Nova Collective"', message: 'Nova mentioned you in a whisper.', time: '5h ago', icon: 'alternate_email' },
@@ -12,9 +15,15 @@ const MOCK_NOTIFICATIONS = [
 ];
 
 export default function NotificationsPage() {
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logoutFromSupabase();
+    router.replace("/app");
+  };
   return (
     <main className="h-screen flex flex-col overflow-hidden bg-surface text-on-surface">
-      <TopAppBar />
+      <TopAppBar onLogout={handleLogout} />
       <div className="flex-1 flex overflow-hidden pt-24 pb-24 md:pb-0 max-w-screen-2xl mx-auto w-full">
         <aside className="hidden md:flex flex-col w-80 bg-surface-container-low h-full rounded-r-3xl mr-6 p-4">
           <div className="px-4 py-2">

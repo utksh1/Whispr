@@ -2,6 +2,8 @@
 
 import { TopAppBar } from "@/components/ui/TopAppBar";
 import { BottomNavBar } from "@/components/ui/BottomNavBar";
+import { logoutFromSupabase } from "@/lib/supabase-chat";
+import { useRouter } from "next/navigation";
 
 const FAQS = [
   { q: "Why are some messages unreadable?", a: "Whispr uses end-to-end encryption. If you clear your browser data or log in from a new device without a key backup, you won't be able to read old messages." },
@@ -11,9 +13,16 @@ const FAQS = [
 ];
 
 export default function HelpPage() {
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logoutFromSupabase();
+    router.replace("/app");
+  };
+
   return (
     <main className="h-screen flex flex-col overflow-hidden bg-surface text-on-surface">
-      <TopAppBar />
+      <TopAppBar onLogout={handleLogout} />
       <div className="flex-1 flex overflow-hidden pt-24 pb-24 md:pb-0 max-w-screen-2xl mx-auto w-full">
         <aside className="hidden md:flex flex-col w-80 bg-surface-container-low h-full rounded-r-3xl mr-6 p-4">
           <div className="px-4 py-2">

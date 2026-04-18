@@ -38,7 +38,7 @@ export default function SettingsPage() {
 
   return (
     <main className="h-screen flex flex-col overflow-hidden bg-surface text-on-surface">
-      <TopAppBar />
+      <TopAppBar onLogout={handleLogout} />
       <div className="flex-1 flex overflow-hidden pt-24 pb-24 md:pb-0 max-w-screen-2xl mx-auto w-full">
         {/* Sidebar Space (Consistent Layout) */}
         <aside className="hidden md:flex flex-col w-80 bg-surface-container-low h-full rounded-r-3xl mr-6 p-4">

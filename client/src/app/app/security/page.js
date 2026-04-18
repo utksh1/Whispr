@@ -5,10 +5,14 @@ import { TopAppBar } from "@/components/ui/TopAppBar";
 import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { Icon } from "@/components/ui/Icon";
 import { readStoredJson } from "@/lib/storage";
+import { logoutFromSupabase, logoutFromAllDevices } from "@/lib/supabase-chat";
+import { useRouter } from "next/navigation";
 
 const APP_IDENTITY_KEY = "whispr-supabase-identity";
 
 export default function SecurityPage() {
+  const router = useRouter();
+  const [isBusy, setIsBusy] = useState(false);
   const [keyStats] = useState(() => {
     const identity = readStoredJson(APP_IDENTITY_KEY);
     if (identity?.keyring) {
@@ -21,9 +25,47 @@ export default function SecurityPage() {
     return { count: 0, activeId: null };
   });
 
+  const handleLogout = async () => {
+    await logoutFromSupabase();
+    router.replace("/app");
+  };
+
+  const handleNuke = async () => {
+    if (!confirm("ARE YOU ABSOLUTELY SURE? This will permanently delete your local encryption keys and messages. You cannot recover your messages without these keys.")) {
+      return;
+    }
+
+    setIsBusy(true);
+    try {
+      localStorage.clear();
+      await logoutFromSupabase();
+      router.replace("/app");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleRevokeSessions = async () => {
+    if (!confirm("This will sign you out from all other devices. Proceed?")) {
+      return;
+    }
+
+    setIsBusy(true);
+    try {
+      await logoutFromAllDevices();
+      router.replace("/app");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
   return (
     <main className="h-screen flex flex-col overflow-hidden bg-surface text-on-surface">
-      <TopAppBar />
+      <TopAppBar onLogout={handleLogout} />
       <div className="flex-1 flex overflow-hidden pt-24 pb-24 md:pb-0 max-w-screen-2xl mx-auto w-full">
         <aside className="hidden md:flex flex-col w-80 bg-surface-container-low h-full rounded-r-3xl mr-6 p-4">
           <div className="px-4 py-2">
@@ -71,14 +113,22 @@ export default function SecurityPage() {
               <section className="bg-surface-container-low p-8 rounded-[3rem] border border-outline-variant/10">
                 <h3 className="text-xl font-bold mb-6 text-error">Danger Zone</h3>
                 <div className="space-y-3">
-                  <button className="w-full text-left p-6 bg-error-container/5 hover:bg-error-container/10 transition-colors rounded-[2rem] flex items-center justify-between group">
+                  <button 
+                    onClick={handleNuke}
+                    disabled={isBusy}
+                    className="w-full text-left p-6 bg-error-container/5 hover:bg-error-container/10 transition-colors rounded-[2rem] flex items-center justify-between group disabled:opacity-50"
+                  >
                     <div>
                       <h4 className="font-bold text-error">Nuke Local Content</h4>
                       <p className="text-sm text-error/60 font-light">Wipes all messages and your local keyring. Cannot be undone.</p>
                     </div>
                     <Icon name="delete_forever" className="text-2xl text-error" />
                   </button>
-                  <button className="w-full text-left p-6 bg-surface-container-highest rounded-[2rem] flex items-center justify-between opacity-50 cursor-not-allowed">
+                  <button 
+                    onClick={handleRevokeSessions}
+                    disabled={isBusy}
+                    className="w-full text-left p-6 bg-surface-container-highest rounded-[2rem] flex items-center justify-between group disabled:opacity-50"
+                  >
                     <div>
                       <h4 className="font-bold">Revoke All Web Sessions</h4>
                       <p className="text-sm text-on-surface-variant font-light">Signs you out from all other devices.</p>

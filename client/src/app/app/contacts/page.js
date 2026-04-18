@@ -6,12 +6,22 @@ import { BottomNavBar } from "@/components/ui/BottomNavBar";
 import { Icon } from "@/components/ui/Icon";
 import { 
   listSupabaseUsers, 
-  getCurrentSupabaseUser
+  getCurrentSupabaseUser,
+  logoutFromSupabase
 } from "@/lib/supabase-chat";
+import { useRouter } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 
 export default function ContactsPage() {
+  const router = useRouter();
   const [contacts, setContacts] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const handleLogout = async () => {
+    await logoutFromSupabase();
+    router.replace("/app");
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -23,7 +33,7 @@ export default function ContactsPage() {
           return;
         }
 
-        const users = await listSupabaseUsers(searchQuery, user.$id);
+        const users = await listSupabaseUsers(searchQuery, user.id);
         if (!cancelled) {
           setContacts(users);
         }
@@ -43,7 +53,7 @@ export default function ContactsPage() {
 
   return (
     <main className="h-screen flex flex-col overflow-hidden bg-surface text-on-surface">
-      <TopAppBar />
+      <TopAppBar onLogout={handleLogout} />
       <div className="flex-1 flex overflow-hidden pt-24 pb-24 md:pb-0 max-w-screen-2xl mx-auto w-full">
         <aside className="hidden md:flex flex-col w-80 bg-surface-container-low h-full rounded-r-3xl mr-6 p-4">
           <div className="px-4 py-2">
@@ -70,13 +80,13 @@ export default function ContactsPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {contacts.map((contact) => (
-                <div key={contact.$id} className="bg-surface-container-low p-6 rounded-[2rem] hover:shadow-[0_20px_60px_rgba(48,51,51,0.06)] transition-all group border border-transparent hover:border-primary/10">
+                <div key={contact.id} className="bg-surface-container-low p-6 rounded-[2rem] hover:shadow-[0_20px_60px_rgba(48,51,51,0.06)] transition-all group border border-transparent hover:border-primary/10">
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-16 h-16 rounded-3xl bg-primary-container text-on-primary-container flex items-center justify-center text-2xl font-bold group-hover:scale-105 transition-transform">
-                      {contact.username[0].toUpperCase()}
+                      {(contact.username || "?")[0].toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="font-bold text-xl text-on-surface">{contact.username}</h3>
+                      <h3 className="font-bold text-xl text-on-surface">{contact.username || "Unknown Whisperer"}</h3>
                       <p className="text-sm text-on-surface-variant font-light truncate max-w-[150px]">{contact.id}</p>
                     </div>
                   </div>

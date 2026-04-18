@@ -188,11 +188,12 @@ async function createProfile(user, requestedUsername = "") {
     }
 
     if (isUniqueViolation(error)) {
-      // If the error was specifically on the 'id' (meaning profile exists), return the existing one
-      if (error.message?.includes("id") || error.details?.includes("id")) {
-        return getProfile(authUserId(user));
+      // Check if a profile with this ID already exists
+      const existing = await getProfile(authUserId(user));
+      if (existing) {
+        return existing;
       }
-      // Otherwise it's a username conflict, try next candidate
+      // If no profile with this ID exists, it must be a username conflict
       continue;
     }
 
@@ -311,6 +312,14 @@ export async function loginWithGoogle() {
 
 export async function logoutFromSupabase() {
   const { error } = await supabase.auth.signOut();
+
+  if (error && !isAuthMissing(error)) {
+    throw error;
+  }
+}
+
+export async function logoutFromAllDevices() {
+  const { error } = await supabase.auth.signOut({ scope: "global" });
 
   if (error && !isAuthMissing(error)) {
     throw error;
