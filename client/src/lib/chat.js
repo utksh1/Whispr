@@ -83,6 +83,7 @@ export async function decryptConversationMessages({
               return {
                 ...message,
                 plaintext,
+                sender: isSenderSelf ? "me" : "peer",
                 integrityStatus: "verified",
               };
             } catch {
@@ -103,6 +104,7 @@ export async function decryptConversationMessages({
         ) {
           return {
             ...message,
+            sender: message.senderUsername === selfUsername ? "me" : "peer",
             plaintext:
               "Missing the old private key for this message. Restore your encrypted key backup or use the original device to read it.",
             integrityStatus: "missing-key",
@@ -111,6 +113,7 @@ export async function decryptConversationMessages({
 
         return {
           ...message,
+          sender: message.senderUsername === selfUsername ? "me" : "peer",
           plaintext: "Ciphertext failed integrity verification on the client.",
           integrityStatus: "failed",
         };
