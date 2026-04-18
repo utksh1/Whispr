@@ -6,7 +6,7 @@ export function Sidebar({ contacts, selectedPeer, onSelectPeer }) {
   };
 
   return (
-    <aside className="hidden md:flex flex-col w-80 bg-surface-container-low h-full rounded-r-3xl mr-6 p-4 overflow-y-auto">
+    <aside className="hidden md:flex flex-col w-80 bg-surface-container-low h-full border-r border-outline-variant p-4 overflow-y-auto">
       <div className="mb-8 px-4">
         <h2 className="text-xl font-semibold tracking-tight text-on-surface mb-6">Recent Whispers</h2>
         {contacts.map((contact) => (

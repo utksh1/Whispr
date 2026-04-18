@@ -612,7 +612,7 @@ export default function AppSurface() {
       ) : (
         <>
           <TopAppBar />
-          <main className="flex-1 flex overflow-hidden pt-24 pb-24 md:pb-0 max-w-screen-2xl mx-auto w-full">
+          <main className="flex-1 flex overflow-hidden pt-16 pb-24 md:pb-0 w-full">
             <Sidebar 
               contacts={contacts} 
               selectedPeer={selectedPeer} 

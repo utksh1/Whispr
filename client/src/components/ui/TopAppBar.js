@@ -4,12 +4,41 @@ import { Icon } from "@/components/ui/Icon";
 
 export function TopAppBar() {
   return (
-    <header className="fixed top-0 w-full z-50 bg-surface/80 dark:bg-on-background/80 backdrop-blur-xl bg-gradient-to-b from-surface to-transparent">
-      <div className="flex justify-between items-center px-8 py-6 max-w-screen-2xl mx-auto">
-        <h1 className="text-2xl font-bold tracking-tight text-on-surface font-headline italic">Whispr</h1>
-        <div className="flex gap-4 items-center">
-          <button type="button" className="text-primary dark:text-primary-fixed hover:opacity-70 transition-opacity duration-300 active:scale-95 cursor-pointer" aria-label="Open menu">
-            <Icon name="more_vert" className="text-2xl" />
+    <header className="fixed inset-x-0 top-0 z-50">
+      <div className="flex h-16 w-full items-center justify-between border-b border-emerald-900/10 bg-white/95 px-6 shadow-sm backdrop-blur-md">
+        <div className="flex items-center gap-4 sm:gap-5">
+          <div className="leading-none">
+            <h1 className="text-xl font-semibold tracking-tight text-emerald-950 font-headline italic sm:text-2xl">Whispr</h1>
+            <p className="hidden text-[10px] uppercase tracking-[0.28em] text-emerald-900/70 sm:block">Encrypted Relay</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="hidden items-center gap-2 rounded-full border border-emerald-800/20 bg-emerald-900/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-emerald-950 md:inline-flex">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            Secured
+          </span>
+
+          <button
+            type="button"
+            className="grid h-9 w-9 place-items-center rounded-xl border border-emerald-900/15 text-emerald-950 transition hover:bg-emerald-900/10 active:scale-95"
+            aria-label="Notifications"
+          >
+            <Icon name="notifications" className="text-lg" />
+          </button>
+          <button
+            type="button"
+            className="grid h-9 w-9 place-items-center rounded-xl border border-emerald-900/15 text-emerald-950 transition hover:bg-emerald-900/10 active:scale-95"
+            aria-label="Open settings"
+          >
+            <Icon name="settings" className="text-lg" />
+          </button>
+          <button
+            type="button"
+            className="grid h-9 w-9 place-items-center rounded-xl border border-emerald-900/15 text-emerald-950 transition hover:bg-emerald-900/10 active:scale-95"
+            aria-label="Open menu"
+          >
+            <Icon name="more_vert" className="text-lg" />
           </button>
         </div>
       </div>

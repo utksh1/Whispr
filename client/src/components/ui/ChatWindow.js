@@ -92,9 +92,9 @@ export function ChatWindow({ peer, messages, messageDraft, onMessageChange, onSe
       {/* Message Input Area */}
       <form 
         onSubmit={onSendMessage}
-        className="p-6 bg-surface z-10"
+        className="bg-surface z-10"
       >
-        <div className="flex items-center gap-4 bg-surface-container-highest rounded-full px-6 py-3 shadow-[0_10px_40px_rgba(48,51,51,0.03)] border border-outline-variant/10 focus-within:border-primary/20 focus-within:shadow-[0_15px_50px_rgba(91,97,80,0.08)] transition-all">
+        <div className="flex items-center gap-4 bg-surface px-6 py-4 border-t border-outline-variant/20 focus-within:bg-surface-container-low transition-all">
           <button type="button" className="text-outline cursor-pointer hover:text-on-surface transition-colors" aria-label="Add attachment">
             <Icon name="add" className="text-2xl" />
           </button>
