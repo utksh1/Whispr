@@ -1,11 +1,20 @@
 import { createClient } from "@supabase/supabase-js";
 
+const getSupabaseUrl = () => {
+  const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (envUrl && envUrl.startsWith("http")) return envUrl;
+  return "https://lptfbgohubujthjnerwm.supabase.co";
+};
+
+const getPublishableKey = () => {
+  const envKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
+  if (envKey) return envKey;
+  return ""; // Should be handled by warning below
+};
+
 export const SUPABASE_CONFIG = {
-  url:
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
-    "https://lptfbgohubujthjnerwm.supabase.co",
-  publishableKey:
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() || "",
+  url: getSupabaseUrl(),
+  publishableKey: getPublishableKey(),
   projectRef:
     process.env.NEXT_PUBLIC_SUPABASE_PROJECT_REF?.trim() ||
     "lptfbgohubujthjnerwm",
