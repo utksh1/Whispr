@@ -38,8 +38,8 @@ function messageSelect(whereClause) {
                  messages.tampered_at as "tamperedAt"
           from messages
           join conversations on conversations.id = messages.conversation_id
-          join users as sender on sender.id = messages.sender_id
-          join users as receiver on receiver.id = case
+          join profiles as sender on sender.id = messages.sender_id
+          join profiles as receiver on receiver.id = case
             when messages.sender_id = conversations.user_a_id then conversations.user_b_id
             else conversations.user_a_id
           end
@@ -62,7 +62,7 @@ async function createMessagesTable(pool) {
     create table if not exists messages (
       id uuid primary key,
       conversation_id uuid not null references conversations(id) on delete cascade,
-      sender_id uuid not null references users(id) on delete cascade,
+      sender_id uuid not null references profiles(id) on delete cascade,
       sender_key_id text,
       receiver_key_id text,
       ciphertext text not null,
@@ -78,14 +78,14 @@ async function createMessagesTable(pool) {
 
 async function ensureUserKeyTables(pool) {
   await pool.query(`
-    alter table users
+    alter table profiles
     add column if not exists active_public_key_id text;
   `);
 
   await pool.query(`
     create table if not exists user_keys (
       id text primary key,
-      user_id uuid not null references users(id) on delete cascade,
+      user_id uuid not null references profiles(id) on delete cascade,
       public_key text not null,
       created_at timestamptz not null default now(),
       revoked_at timestamptz,
@@ -95,7 +95,7 @@ async function ensureUserKeyTables(pool) {
 
   await pool.query(`
     create table if not exists private_key_backups (
-      user_id uuid primary key references users(id) on delete cascade,
+      user_id uuid primary key references profiles(id) on delete cascade,
       ciphertext text not null,
       salt text not null,
       iv text not null,
@@ -178,8 +178,8 @@ async function migrateLegacyMessages(pool) {
          then legacy.sender_id::text || ':' || legacy.receiver_id::text
        else legacy.receiver_id::text || ':' || legacy.sender_id::text
      end
-     join users as sender on sender.id = legacy.sender_id
-     join users as receiver on receiver.id = legacy.receiver_id
+     join profiles as sender on sender.id = legacy.sender_id
+     join profiles as receiver on receiver.id = legacy.receiver_id
      on conflict (id) do nothing`
   );
 
@@ -214,7 +214,7 @@ async function migrateLegacyUserKeys(pool) {
     );
 
     await pool.query(
-      `update users
+      `update profiles
        set active_public_key_id = $2
        where id = $1`,
       [user.id, keyId]
@@ -224,7 +224,7 @@ async function migrateLegacyUserKeys(pool) {
 
 async function ensureSchema(pool) {
   await pool.query(`
-    create table if not exists users (
+    create table if not exists profiles (
       id uuid primary key,
       username varchar(32) unique not null,
       password_hash text not null,
@@ -238,8 +238,8 @@ async function ensureSchema(pool) {
     create table if not exists conversations (
       id uuid primary key,
       participant_key text not null,
-      user_a_id uuid not null references users(id) on delete cascade,
-      user_b_id uuid not null references users(id) on delete cascade,
+      user_a_id uuid not null references profiles(id) on delete cascade,
+      user_b_id uuid not null references profiles(id) on delete cascade,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now(),
       last_message_at timestamptz
@@ -307,7 +307,7 @@ class PostgresUserRepository {
                    ) as "hasPrivateKeyBackup",
                    users.created_at as "createdAt",
                    users.updated_at as "updatedAt"
-            from users
+            from profiles as users
             ${whereClause}`;
   }
 
@@ -319,7 +319,7 @@ class PostgresUserRepository {
       passwordHash,
     };
     const result = await this.pool.query(
-      `insert into users (id, username, password_hash)
+      `insert into profiles (id, username, password_hash)
        values ($1, $2, $3)
        returning id, username, password_hash as "passwordHash", public_key as "publicKey",
                  active_public_key_id as "activePublicKeyId", false as "hasPrivateKeyBackup",
@@ -357,7 +357,7 @@ class PostgresUserRepository {
                 from private_key_backups
                 where private_key_backups.user_id = users.id
               ) as "hasPrivateKeyBackup"
-       from users
+       from profiles as users
        where username like $1
        order by username asc
        limit 50`,
@@ -395,7 +395,7 @@ class PostgresUserRepository {
     );
 
     const result = await this.pool.query(
-      `update users
+      `update profiles
        set public_key = $2, active_public_key_id = $3, updated_at = now()
        where id = $1
        returning id, username, password_hash as "passwordHash", public_key as "publicKey",
@@ -425,7 +425,7 @@ class PostgresUserRepository {
               user_keys.revoked_at as "revokedAt",
               user_keys.is_active as "isActive"
        from user_keys
-       join users on users.id = user_keys.user_id
+       join profiles as users on users.id = user_keys.user_id
        where user_keys.id = $1
        limit 1`,
       [keyId]
@@ -602,7 +602,7 @@ class PostgresMessageRepository {
                 limit 1
               ) as "lastMessage"
        from conversations
-       join users on users.id = case
+       join profiles as users on users.id = case
                                   when user_a_id = $1 then user_b_id
                                   else user_a_id
                                 end

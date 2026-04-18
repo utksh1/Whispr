@@ -1,27 +1,27 @@
 # 🛣️ Whispr — API Design
 
-## Current Product Appwrite Interfaces
+## Current Product Supabase Interfaces
 
-The user-facing `/app` route now talks directly to Appwrite:
-- Appwrite Auth handles email/password registration, login, current account lookup, and logout.
-- Appwrite Databases stores user profiles, public keys, encrypted key backups, and ciphertext-only messages.
+The user-facing `/app` route now talks directly to Supabase:
+- Supabase Auth handles email/password registration, login, current account lookup, logout, and Google OAuth.
+- Supabase Postgres stores user profiles, public keys, encrypted key backups, and ciphertext-only messages.
+- Supabase Realtime can refresh the active conversation when new message rows arrive.
 - The browser still performs encryption and decryption locally before any message payload is written.
 
-Client-side Appwrite configuration:
+Client-side Supabase configuration:
 ```env
-NEXT_PUBLIC_APPWRITE_ENDPOINT=https://nyc.cloud.appwrite.io/v1
-NEXT_PUBLIC_APPWRITE_PROJECT_ID=69e2ba2700132ed5d552
-NEXT_PUBLIC_APPWRITE_PROJECT_NAME=Whispr
-NEXT_PUBLIC_APPWRITE_DATABASE_ID=whispr
+NEXT_PUBLIC_SUPABASE_URL=https://lptfbgohubujthjnerwm.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_publishable_key
+NEXT_PUBLIC_SUPABASE_PROJECT_REF=lptfbgohubujthjnerwm
 ```
 
-Product data collections:
-- `users`
+Product data tables:
+- `profiles`
 - `user_keys`
 - `private_key_backups`
 - `messages`
 
-See `Docs/10_Appwrite_Setup.md` for collection schema and permissions.
+See `Docs/10_Supabase_Setup.md` for schema, RLS, auth, and MCP setup.
 
 ## Legacy / Demo Express API
 

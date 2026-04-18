@@ -31,6 +31,9 @@ The client runs on `http://localhost:3000` by default.
 The client expects:
 
 - `NEXT_PUBLIC_API_URL`: backend base URL, for example `http://localhost:4000`
+- `NEXT_PUBLIC_SUPABASE_URL`: browser Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Supabase publishable key
+- `NEXT_PUBLIC_SUPABASE_PROJECT_REF`: Supabase project ref
 
 See `./.env.example` for the default local setup.
 

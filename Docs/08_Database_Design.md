@@ -2,19 +2,19 @@
 
 ## Current Product Storage
 
-The product app (`/app`) now uses Appwrite Auth and Appwrite Databases.
+The product app (`/app`) now uses Supabase Auth, Postgres, and Realtime.
 
-Appwrite database ID: `whispr`
+Supabase project ref: `lptfbgohubujthjnerwm`
 
-Appwrite collections:
-- `users`: user discovery, active public key, backup presence flag
+Current public tables:
+- `profiles`: user discovery, active public key, backup presence flag
 - `user_keys`: historical public keys by deterministic key id
 - `private_key_backups`: encrypted keyring backup material only
 - `messages`: ciphertext, nonce, salt, sender/receiver ids, key ids, timestamps
 
-See `Docs/10_Appwrite_Setup.md` for the exact Appwrite attributes, indexes, and permissions.
+See `Docs/10_Supabase_Setup.md` and [supabase/whispr_schema.sql](/Users/Utkarsh/Desktop/Projects/Whispr/supabase/whispr_schema.sql) for the exact table definitions, indexes, RLS policies, and Realtime setup.
 
-The SQL-style schema below remains the repository/server target model and maps directly to the Appwrite document collections.
+The SQL-style schema below remains the repository/server target model and maps directly to the Supabase tables.
 
 ## 1. Users Table
 ```sql

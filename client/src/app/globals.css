@@ -1,19 +1,75 @@
 @import "tailwindcss";
 
-:root {
-  --background: #020817;
-  --foreground: #e2e8f0;
+@theme {
+  --font-headline: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-label: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: Georgia, "Times New Roman", serif;
+
+  --color-secondary-fixed: #ffdad3;
+  --color-outline-variant: #b0b2b1;
+  --color-surface: #faf9f8;
+  --color-on-secondary-fixed-variant: #74544d;
+  --color-on-surface-variant: #5d605f;
+  --color-on-secondary-container: #694a44;
+  --color-inverse-surface: #0d0e0e;
+  --color-surface-container-highest: #e1e3e2;
+  --color-secondary-dim: #6b4b45;
+  --color-on-tertiary-fixed: #4f3503;
+  --color-inverse-primary: #f5fce5;
+  --color-error-container: #f97386;
+  --color-on-background: #303333;
+  --color-error: #a8364b;
+  --color-secondary-container: #ffdad3;
+  --color-surface-tint: #5b6150;
+  --color-on-error-container: #6e0523;
+  --color-tertiary: #785a26;
+  --color-outline: #787b7a;
+  --color-on-primary: #f5fce5;
+  --color-surface-container-low: #f4f4f2;
+  --color-secondary-fixed-dim: #f6cbc2;
+  --color-primary-fixed-dim: #d0d7c1;
+  --color-tertiary-container: #fdd494;
+  --color-primary-dim: #4f5544;
+  --color-secondary: #785750;
+  --color-on-tertiary-container: #644815;
+  --color-inverse-on-surface: #9d9d9c;
+  --color-error-dim: #6b0221;
+  --color-surface-variant: #e1e3e2;
+  --color-primary-fixed: #dee5cf;
+  --color-background: #faf9f8;
+  --color-tertiary-dim: #6b4e1b;
+  --color-tertiary-fixed: #fdd494;
+  --color-surface-container: #edeeed;
+  --color-on-surface: #303333;
+  --color-on-error: #fff7f7;
+  --color-on-tertiary-fixed-variant: #6e511e;
+  --color-on-secondary: #fff7f6;
+  --color-surface-bright: #faf9f8;
+  --color-on-primary-fixed: #3b4232;
+  --color-on-primary-fixed-variant: #575e4d;
+  --color-primary-container: #dee5cf;
+  --color-primary: #5b6150;
+  --color-surface-dim: #d8dad9;
+  --color-tertiary-fixed-dim: #eec687;
+  --color-on-tertiary: #fff8f2;
+  --color-surface-container-high: #e7e8e7;
+  --color-on-primary-container: #4d5443;
+  --color-on-secondary-fixed: #553832;
+  --color-surface-container-lowest: #ffffff;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
-  --font-mono: "SFMono-Regular", "Menlo", "Monaco", monospace;
+:root {
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
+}
+
+@layer base {
+  input[type="text"], input[type="password"], input[type="email"] {
+    @apply focus:ring-0 focus:outline-none;
+  }
 }

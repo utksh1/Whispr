@@ -45,7 +45,7 @@ flowchart LR
   end
 
   subgraph Services["Untrusted Service Boundary"]
-    subgraph Backend["Backend / Appwrite Service"]
+    subgraph Backend["Backend / Supabase Service"]
       B1["Authentication"]
       B2["Public Key Lookup"]
       B3["Message Relay + Offline Sync"]
@@ -90,8 +90,8 @@ This means:
 
 ## Architecture Style
 - Frontend: Next.js / React / TypeScript
-- Backend: Node.js / Express
-- Realtime Layer: Socket.IO
+- Auth + Data Platform: Supabase Auth + Postgres
+- Realtime Layer: Supabase Realtime
 - Database direction: PostgreSQL
 - Crypto Layer: Web Crypto API with modern elliptic-curve and AEAD primitives
 
