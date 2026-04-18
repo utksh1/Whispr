@@ -397,6 +397,10 @@ export default function AppSurface() {
         encryptedMessage,
       });
       setIsBusy(false);
+    } catch (e) {
+      setError(readableSupabaseError(e));
+    } finally {
+      setIsBusy(false);
     }
   }
 
