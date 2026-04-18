@@ -130,7 +130,7 @@ export async function GET() {
     const [profiles, keys, backups, messages] = await Promise.all([
       selectRows(supabaseAdmin, "profiles", (table) =>
         table
-          .select("id, username, email, public_key, active_public_key_id, has_public_key, has_private_key_backup, updated_at, created_at")
+          .select("*")
           .order("updated_at", { ascending: false })
           .limit(100)
       ),
