@@ -1,15 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
 
 const getSupabaseUrl = () => {
-  const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  if (envUrl && envUrl.startsWith("http")) return envUrl;
+  let envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (envUrl && envUrl.startsWith("http")) {
+    return envUrl.replace(/\/$/, "");
+  }
   return "https://lptfbgohubujthjnerwm.supabase.co";
 };
 
 const getPublishableKey = () => {
   const envKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
   if (envKey) return envKey;
-  return ""; // Should be handled by warning below
+  // Fallback to a known key for lptfbgohubujthjnerwm if possible, 
+  // or return a dummy that won't crash fetch
+  return "MISSING_KEY"; 
 };
 
 export const SUPABASE_CONFIG = {
@@ -20,9 +24,9 @@ export const SUPABASE_CONFIG = {
     "lptfbgohubujthjnerwm",
 };
 
-if (!SUPABASE_CONFIG.publishableKey) {
-  console.warn(
-    "[supabase] NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is missing. Auth and database calls will fail until it is configured."
+if (SUPABASE_CONFIG.publishableKey === "MISSING_KEY") {
+  console.error(
+    "[supabase] NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is missing. Building with a dummy key."
   );
 }
 
