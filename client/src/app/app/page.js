@@ -106,6 +106,7 @@ export default function AppSurface() {
   const [status, setStatus] = useState("Opening your secure workspace...");
   const [error, setError] = useState("");
   const [isBusy, setIsBusy] = useState(false);
+  const [isBooting, setIsBooting] = useState(true);
   const authSecretRef = useRef("");
   const selectedPeerRef = useRef(null);
   const accountUserRef = useRef(null);
@@ -177,13 +178,20 @@ export default function AppSurface() {
         );
 
         if (user && nextProfile) {
-          router.replace("/app");
+          // Only replace if we have query params to clean up, to avoid unnecessary re-mounts
+          if (oauthState || typeof window !== "undefined" && window.location.search) {
+            router.replace("/app");
+          }
         }
       } catch (requestError) {
         if (!cancelled) {
           const nextError = readableSupabaseError(requestError);
           setError(isIgnorableAuthScreenError(nextError) ? "" : nextError);
           setStatus("Whispr needs Supabase auth and tables configured before chats can open.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsBooting(false);
         }
       }
     }
@@ -420,7 +428,14 @@ export default function AppSurface() {
 
   return (
     <main className="h-screen w-full flex flex-col overflow-hidden bg-surface text-on-surface">
-      {!isSessionAuthenticated ? (
+      {isBooting ? (
+        <section className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(20,184,166,0.18),_transparent_32%),linear-gradient(180deg,_#071827,_#020817_68%)] px-6 text-slate-100">
+          <div className="text-center">
+            <p className="text-xs uppercase tracking-[0.35em] text-cyan-300">Whispr</p>
+            <h1 className="mt-4 text-4xl font-semibold text-white animate-pulse">Initializing...</h1>
+          </div>
+        </section>
+      ) : !isSessionAuthenticated ? (
         <section className="relative h-[100dvh] w-full overflow-y-auto overflow-x-hidden text-silver-100 font-body">
           <div
             className="fixed inset-0"
