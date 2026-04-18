@@ -193,3 +193,42 @@ export async function GET() {
     );
   }
 }
+export async function DELETE(request) {
+  if (!isDemoAdminEnabled()) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const type = searchParams.get("type");
+  const id = searchParams.get("id");
+
+  if (!type || !id) {
+    return NextResponse.json({ error: "Missing type or id" }, { status: 400 });
+  }
+
+  const supabaseAdmin = getSupabaseAdminClient();
+
+  try {
+    if (type === "message") {
+      const { error } = await supabaseAdmin
+        .from("messages")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    } else if (type === "user") {
+      // First delete from profiles (cascades to everything in public schema)
+      const { error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .delete()
+        .eq("id", id);
+      if (profileError) throw profileError;
+
+      // Note: In a real app we would also delete the auth user
+      // await supabaseAdmin.auth.admin.deleteUser(id)
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

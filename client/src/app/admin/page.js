@@ -75,36 +75,50 @@ function MonoBlock({ children, className = "" }) {
   );
 }
 
-function MessageRow({ message, active, onSelect }) {
+function MessageRow({ message, active, onSelect, onDelete }) {
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(message.id)}
+    <div 
       className={`grid w-full gap-3 rounded-lg border p-4 text-left transition md:grid-cols-[1fr_1.2fr_0.7fr] ${
         active
           ? "border-[#2f8f67] bg-[#eef9f2]"
           : "border-[#d5ddd7] bg-white hover:border-[#98ada1]"
       }`}
     >
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="font-semibold text-[#17201d]">{message.senderUsername}</p>
-          <span className="text-[#607068]">to</span>
-          <p className="font-semibold text-[#17201d]">{message.receiverUsername}</p>
-        </div>
-        <p className="mt-2 text-sm text-[#607068]">{formatTime(message.createdAt)}</p>
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => onDelete(message.id)}
+          className="p-2 text-[#8a2323] hover:bg-[#fff0f0] border border-transparent hover:border-[#e4a4a4] rounded-md transition-colors shadow-sm bg-white"
+          title="Delete message"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => onSelect(message.id)}
+          className="flex-1 text-left"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-[#17201d]">{message.senderUsername}</p>
+            <span className="text-[#607068]">to</span>
+            <p className="font-semibold text-[#17201d]">{message.receiverUsername}</p>
+          </div>
+          <p className="mt-2 text-sm text-[#607068]">{formatTime(message.createdAt)}</p>
+        </button>
       </div>
-      <div>
+      <div className="flex flex-col justify-center">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#607068]">Ciphertext preview</p>
         <p className="mt-2 break-all font-mono text-xs leading-5 text-[#334039]">{message.ciphertextPreview}</p>
       </div>
-      <div className="flex flex-wrap items-start gap-2 md:justify-end">
+      <div className="flex flex-wrap items-center gap-2 md:justify-end">
         <Badge tone={message.tampered ? "danger" : "good"}>
           {message.tampered ? "tampered" : "stored encrypted"}
         </Badge>
         <Badge>{message.ciphertextLength} chars</Badge>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -174,6 +188,27 @@ export default function DemoAdminPage() {
       setRefreshing(false);
     }
   }, []);
+
+  const deleteResource = async (type, id) => {
+    if (!window.confirm(`Are you sure you want to delete this ${type}? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin?type=${type}&id=${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const payload = await response.json();
+        throw new Error(payload.error || `Failed to delete ${type}`);
+      }
+
+      loadSnapshot({ quiet: true });
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -317,6 +352,7 @@ export default function DemoAdminPage() {
                     message={message}
                     active={selectedMessage?.id === message.id}
                     onSelect={setSelectedMessageId}
+                    onDelete={(id) => deleteResource("message", id)}
                   />
                 ))
               ) : (
@@ -394,7 +430,16 @@ export default function DemoAdminPage() {
                   </Badge>
                 </div>
                 <p className="mt-2 break-all text-xs text-[#607068]">{profile.id}</p>
-                <p className="mt-2 text-sm text-[#607068]">{profile.email || "email not stored"}</p>
+                <div className="mt-6 flex items-center justify-between gap-3 border-t border-[#e4ebe6] pt-4">
+                  <p className="text-sm text-[#607068]">{profile.email || "email not stored"}</p>
+                  <button
+                    type="button"
+                    onClick={() => deleteResource("user", profile.id)}
+                    className="rounded-md border border-[#e4a4a4] bg-white px-3 py-1.5 text-xs font-semibold text-[#8a2323] transition-colors hover:bg-[#fff0f0]"
+                  >
+                    Delete user
+                  </button>
+                </div>
               </div>
             )}
           />
