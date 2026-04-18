@@ -16,6 +16,8 @@ function serializeMessage(message) {
   return {
     id: message.id,
     conversationId: message.conversationId,
+    senderKeyId: message.senderKeyId || null,
+    receiverKeyId: message.receiverKeyId || null,
     senderUsername: message.senderUsername,
     receiverUsername: message.receiverUsername,
     ciphertext: message.ciphertext,
@@ -139,7 +141,15 @@ function registerMessageRoutes(app, { config, repositories, io }) {
         throw new HttpError(400, "sender_public_key_missing");
       }
 
+      if (!sender.activePublicKeyId) {
+        throw new HttpError(400, "sender_public_key_missing");
+      }
+
       if (!peer.publicKey) {
+        throw new HttpError(400, "receiver_public_key_missing");
+      }
+
+      if (!peer.activePublicKeyId) {
         throw new HttpError(400, "receiver_public_key_missing");
       }
 
@@ -148,6 +158,8 @@ function registerMessageRoutes(app, { config, repositories, io }) {
         receiverId: peer.id,
         senderUsername: sender.username,
         receiverUsername: peer.username,
+        senderKeyId: sender.activePublicKeyId,
+        receiverKeyId: peer.activePublicKeyId,
         ciphertext: input.ciphertext,
         nonce: input.nonce,
         salt: input.salt,

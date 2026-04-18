@@ -61,5 +61,25 @@ Digital signatures or equivalent authenticated message designs may be used to en
 
 ---
 
+## 🔑 Private Key Lifecycle
+
+Whispr intentionally separates login from message decryption:
+- JWT login proves account access.
+- The private keyring proves message access.
+- Logout clears the JWT session but does not delete local private keys.
+- Key regeneration adds a new keypair to the keyring so older messages can still decrypt with older private keys.
+- Public key upload activates the new public key for future inbound messages.
+
+Encrypted backup flow:
+1. The client serializes the local keyring.
+2. The client derives a backup key from the user's secret using PBKDF2-SHA256.
+3. The client encrypts the serialized keyring with AES-GCM.
+4. The server stores only ciphertext backup material: `ciphertext`, `salt`, `iv`, and `version`.
+5. A fresh device can restore old-chat access only if it can decrypt that backup.
+
+If a private key for a historical message is missing, the client should show a missing-key state. That is different from integrity failure, which means ciphertext/authenticated metadata verification failed.
+
+---
+
 > [!IMPORTANT]
 > This document describes the intended security direction. The exact message format, key rotation policy, replay protection strategy, and signature model should be documented alongside implementation once they are finalized.

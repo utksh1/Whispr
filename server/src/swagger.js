@@ -49,7 +49,7 @@ function createSwaggerSpec(config) {
           },
           AuthUser: {
             type: "object",
-            required: ["id", "username", "hasPublicKey"],
+            required: ["id", "username", "hasPublicKey", "hasPrivateKeyBackup"],
             properties: {
               id: {
                 type: "string",
@@ -60,6 +60,13 @@ function createSwaggerSpec(config) {
                 example: "alice",
               },
               hasPublicKey: {
+                type: "boolean",
+              },
+              activePublicKeyId: {
+                type: "string",
+                nullable: true,
+              },
+              hasPrivateKeyBackup: {
                 type: "boolean",
               },
             },
@@ -77,6 +84,63 @@ function createSwaggerSpec(config) {
               },
               hasPublicKey: {
                 type: "boolean",
+              },
+              activePublicKeyId: {
+                type: "string",
+                nullable: true,
+              },
+              hasPrivateKeyBackup: {
+                type: "boolean",
+              },
+            },
+          },
+          PublicKeyRecord: {
+            type: "object",
+            required: ["id", "username", "publicKey", "isActive"],
+            properties: {
+              id: {
+                type: "string",
+              },
+              username: {
+                type: "string",
+              },
+              publicKey: {
+                type: "string",
+              },
+              isActive: {
+                type: "boolean",
+              },
+              revokedAt: {
+                type: "string",
+                format: "date-time",
+                nullable: true,
+              },
+            },
+          },
+          PrivateKeyBackup: {
+            type: "object",
+            required: ["ciphertext", "salt", "iv", "version"],
+            properties: {
+              userId: {
+                type: "string",
+                format: "uuid",
+              },
+              ciphertext: {
+                type: "string",
+              },
+              salt: {
+                type: "string",
+              },
+              iv: {
+                type: "string",
+              },
+              version: {
+                type: "string",
+                example: "backup-pbkdf2-aes-gcm-v1",
+              },
+              updatedAt: {
+                type: "string",
+                format: "date-time",
               },
             },
           },
@@ -102,6 +166,14 @@ function createSwaggerSpec(config) {
               conversationId: {
                 type: "string",
                 format: "uuid",
+              },
+              senderKeyId: {
+                type: "string",
+                nullable: true,
+              },
+              receiverKeyId: {
+                type: "string",
+                nullable: true,
               },
               senderUsername: {
                 type: "string",

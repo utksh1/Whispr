@@ -14,6 +14,8 @@ const ciphertextSchema = zod.string().min(1);
 const nonceSchema = zod.string().min(1);
 const saltSchema = zod.string().min(1);
 const versionSchema = zod.string().trim().min(1);
+const backupCiphertextSchema = zod.string().min(1);
+const backupIvSchema = zod.string().min(1);
 
 const registerSchema = zod.object({
   username: usernameSchema,
@@ -27,6 +29,13 @@ const loginSchema = zod.object({
 
 const publicKeyUpdateSchema = zod.object({
   publicKey: publicKeySchema,
+});
+
+const privateKeyBackupSchema = zod.object({
+  ciphertext: backupCiphertextSchema,
+  salt: saltSchema,
+  iv: backupIvSchema,
+  version: versionSchema,
 });
 
 const createMessageSchema = zod.object({
@@ -52,5 +61,6 @@ module.exports = {
   registerSchema,
   loginSchema,
   publicKeyUpdateSchema,
+  privateKeyBackupSchema,
   createMessageSchema,
 };

@@ -12,7 +12,7 @@ class FileSystemRepositories {
     this.saveRequested = false;
 
     // Wrap the users repository methods that mutate state
-    this.wrapMutation(this.users, ["createUser", "setPublicKey"]);
+    this.wrapMutation(this.users, ["createUser", "setPublicKey", "setPrivateKeyBackup"]);
     // Wrap the messages repository methods that mutate state
     this.wrapMutation(this.messages, ["createMessage", "markTampered"]);
   }

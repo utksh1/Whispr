@@ -26,6 +26,51 @@ Stores:
 - delivery status
 - device metadata
 
+## System Diagram
+
+```mermaid
+flowchart LR
+  subgraph Clients["Trusted Client Devices"]
+    subgraph Sender["Sender Client"]
+      S1["Login / Session"]
+      S2["Fetch Receiver Public Key"]
+      S3["Encrypt Message Locally"]
+    end
+
+    subgraph Receiver["Receiver Client"]
+      R1["Fetch Ciphertext"]
+      R2["Decrypt Message Locally"]
+      R3["Verify Authenticity"]
+    end
+  end
+
+  subgraph Services["Untrusted Service Boundary"]
+    subgraph Backend["Backend / Appwrite Service"]
+      B1["Authentication"]
+      B2["Public Key Lookup"]
+      B3["Message Relay + Offline Sync"]
+    end
+
+    subgraph Database["Database Storage"]
+      D1["User Profiles"]
+      D2["Public Keys"]
+      D3["Encrypted Messages"]
+      D4["Delivery Metadata"]
+    end
+  end
+
+  S1 --> B1
+  S2 --> B2
+  B2 --> D2
+  S3 --> B3
+  B1 --> D1
+  B3 --> D3
+  B3 --> D4
+  D3 --> R1
+  D2 --> R1
+  R1 --> R2 --> R3
+```
+
 ## Trust Model
 The backend is **untrusted for message confidentiality**.
 

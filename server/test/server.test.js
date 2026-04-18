@@ -99,6 +99,7 @@ test("register/login/auth/message flow works and never stores plaintext", async 
     });
 
     assert.equal(alicePublicKey.status, 200);
+    assert.ok(alicePublicKey.body.user.activePublicKeyId);
 
     const bobPublicKey = await api("/me/public-key", {
       method: "PUT",
@@ -109,6 +110,37 @@ test("register/login/auth/message flow works and never stores plaintext", async 
     });
 
     assert.equal(bobPublicKey.status, 200);
+    assert.ok(bobPublicKey.body.user.activePublicKeyId);
+
+    const aliceBackup = await api("/me/private-key-backup", {
+      method: "PUT",
+      headers: aliceHeaders,
+      body: JSON.stringify({
+        ciphertext: "encrypted-keyring",
+        salt: "backup-salt",
+        iv: "backup-iv",
+        version: "backup-pbkdf2-aes-gcm-v1",
+      }),
+    });
+
+    assert.equal(aliceBackup.status, 200);
+
+    const fetchedBackup = await api("/me/private-key-backup", {
+      headers: aliceHeaders,
+    });
+
+    assert.equal(fetchedBackup.status, 200);
+    assert.equal(fetchedBackup.body.backup.ciphertext, "encrypted-keyring");
+    assert.equal(fetchedBackup.body.backup.privateKey, undefined);
+    assert.equal(fetchedBackup.body.backup.plaintext, undefined);
+
+    const unauthenticatedBackup = await api("/me/private-key-backup");
+    assert.equal(unauthenticatedBackup.status, 401);
+
+    const bobCannotReadAliceBackup = await api("/me/private-key-backup", {
+      headers: bobHeaders,
+    });
+    assert.equal(bobCannotReadAliceBackup.status, 404);
 
     const publicKeyLookup = await api("/users/bob/public-key", {
       headers: aliceHeaders,
@@ -116,6 +148,44 @@ test("register/login/auth/message flow works and never stores plaintext", async 
 
     assert.equal(publicKeyLookup.status, 200);
     assert.equal(publicKeyLookup.body.publicKey, "bob-public");
+    assert.ok(publicKeyLookup.body.keyId);
+
+    const keyLookup = await api(`/keys/${publicKeyLookup.body.keyId}`, {
+      headers: aliceHeaders,
+    });
+
+    assert.equal(keyLookup.status, 200);
+    assert.equal(keyLookup.body.key.publicKey, "bob-public");
+    assert.equal(keyLookup.body.key.privateKey, undefined);
+
+    const rotatedBobPublicKey = await api("/me/public-key", {
+      method: "PUT",
+      headers: bobHeaders,
+      body: JSON.stringify({
+        publicKey: "bob-public-v2",
+      }),
+    });
+
+    assert.equal(rotatedBobPublicKey.status, 200);
+    assert.notEqual(
+      rotatedBobPublicKey.body.user.activePublicKeyId,
+      bobPublicKey.body.user.activePublicKeyId
+    );
+
+    const oldBobKeyLookup = await api(`/keys/${bobPublicKey.body.user.activePublicKeyId}`, {
+      headers: aliceHeaders,
+    });
+
+    assert.equal(oldBobKeyLookup.status, 200);
+    assert.equal(oldBobKeyLookup.body.key.publicKey, "bob-public");
+
+    const currentBobKeyLookup = await api("/users/bob/public-key", {
+      headers: aliceHeaders,
+    });
+
+    assert.equal(currentBobKeyLookup.status, 200);
+    assert.equal(currentBobKeyLookup.body.publicKey, "bob-public-v2");
+    assert.equal(currentBobKeyLookup.body.keyId, rotatedBobPublicKey.body.user.activePublicKeyId);
 
     const sendMessage = await api("/conversations/bob/messages", {
       method: "POST",
@@ -132,6 +202,8 @@ test("register/login/auth/message flow works and never stores plaintext", async 
     assert.equal(sendMessage.status, 201);
     assert.equal(sendMessage.body.message.senderUsername, "alice");
     assert.match(sendMessage.body.message.conversationId, /^[0-9a-f-]{36}$/i);
+    assert.ok(sendMessage.body.message.senderKeyId);
+    assert.ok(sendMessage.body.message.receiverKeyId);
 
     const storedConversationMessages = [
       ...repositories.messages.messagesByConversationId.values(),
@@ -155,6 +227,8 @@ test("register/login/auth/message flow works and never stores plaintext", async 
     assert.equal(messages.body.messages[0].version, "p256-hkdf-aes-gcm-v2");
     assert.equal(messages.body.messages[0].senderUsername, "alice");
     assert.equal(messages.body.messages[0].receiverUsername, "bob");
+    assert.equal(messages.body.messages[0].senderKeyId, alicePublicKey.body.user.activePublicKeyId);
+    assert.equal(messages.body.messages[0].receiverKeyId, rotatedBobPublicKey.body.user.activePublicKeyId);
     assert.equal(messages.body.messages[0].plaintext, undefined);
 
     const tamper = await api(`/messages/${messages.body.messages[0].id}/tamper`, {
@@ -226,6 +300,10 @@ test("public root and health routes do not require auth", async () => {
     assert.equal(openApi.body.info.title, "Whispr API");
     assert.ok(openApi.body.paths["/auth/register"]);
     assert.ok(openApi.body.paths["/health"]);
+    assert.ok(openApi.body.paths["/me/private-key-backup"]);
+    assert.ok(openApi.body.paths["/keys/{keyId}"]);
+    assert.ok(openApi.body.components.schemas.PrivateKeyBackup);
+    assert.ok(openApi.body.components.schemas.PublicKeyRecord);
 
     const docsResponse = await fetch(`${api.baseUrl}/docs/`);
     const docsHtml = await docsResponse.text();

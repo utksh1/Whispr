@@ -54,6 +54,20 @@ export function updateMyPublicKey(token, publicKey) {
   });
 }
 
+export function updatePrivateKeyBackup(token, backup) {
+  return apiRequest("/me/private-key-backup", {
+    method: "PUT",
+    token,
+    body: JSON.stringify(backup),
+  });
+}
+
+export function getPrivateKeyBackup(token) {
+  return apiRequest("/me/private-key-backup", {
+    token,
+  });
+}
+
 export function listUsers(token, query = "") {
   const search = query ? `?query=${encodeURIComponent(query)}` : "";
 
@@ -64,6 +78,12 @@ export function listUsers(token, query = "") {
 
 export function getUserPublicKey(token, username) {
   return apiRequest(`/users/${encodeURIComponent(username)}/public-key`, {
+    token,
+  });
+}
+
+export function getPublicKeyById(token, keyId) {
+  return apiRequest(`/keys/${encodeURIComponent(keyId)}`, {
     token,
   });
 }

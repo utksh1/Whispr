@@ -8,6 +8,8 @@ function serializeAuthUser(user) {
     id: user.id,
     username: user.username,
     hasPublicKey: Boolean(user.publicKey),
+    activePublicKeyId: user.activePublicKeyId || null,
+    hasPrivateKeyBackup: Boolean(user.hasPrivateKeyBackup),
   };
 }
 

@@ -8,6 +8,7 @@ import { BackendPayloadPanel } from "@/components/backend-payload-panel";
 import {
   fetchConversationMessages,
   getCurrentUser,
+  getPublicKeyById,
   getUserPublicKey,
   listUsers,
   loginUser,
@@ -51,6 +52,16 @@ function counterpartSlot(slotId) {
   return slotId === "left" ? "right" : "left";
 }
 
+function isIdentityPublicKeyUploaded(identity) {
+  return Boolean(
+    ((identity.uploadedKeyId || null) &&
+      identity.currentKeyId &&
+      identity.uploadedKeyId === identity.currentKeyId) ||
+      (identity.uploadedPublicKey &&
+        identity.uploadedPublicKey === identity.publicKey)
+  );
+}
+
 function createEmptyParticipant(slotId) {
   return {
     slotId,
@@ -62,7 +73,10 @@ function createEmptyParticipant(slotId) {
       ready: false,
       publicKey: "",
       keyPair: null,
+      currentKeyId: null,
+      keyring: [],
       uploadedPublicKey: null,
+      uploadedKeyId: null,
     },
     messages: [],
   };
@@ -78,9 +92,7 @@ function ParticipantCard({
   onRegenerateKey,
   onLogout,
 }) {
-  const currentKeyUploaded =
-    participant.identity.uploadedPublicKey === participant.identity.publicKey &&
-    Boolean(participant.identity.publicKey);
+  const currentKeyUploaded = isIdentityPublicKeyUploaded(participant.identity);
 
   return (
     <div
@@ -340,7 +352,12 @@ export default function DemoSurface() {
         messages: result.messages,
         selfUsername: participant.user.username,
         selfIdentity: participant.identity,
-        resolvePublicKey: async (username) => {
+        resolvePublicKey: async ({ username, keyId }) => {
+          if (keyId) {
+            const result = await getPublicKeyById(participant.token, keyId);
+            return result.key.publicKey;
+          }
+
           const publicKey = await getUserPublicKey(participant.token, username);
           return publicKey.publicKey;
         },
@@ -457,38 +474,53 @@ export default function DemoSurface() {
     }
   }
 
-  async function handleUploadKey(slotId) {
+  async function uploadParticipantPublicKey(slotId, options = {}) {
+    const { showStatus = true } = options;
     const participant = participantsRef.current[slotId];
 
     if (!participant.token) {
-      return;
+      return participant.identity;
     }
 
     try {
       setError("");
       const result = await updateMyPublicKey(participant.token, participant.identity.publicKey);
+      const nextIdentity = {
+        ...participant.identity,
+        uploadedPublicKey: participant.identity.publicKey,
+        uploadedKeyId: result.user.activePublicKeyId || participant.identity.currentKeyId,
+      };
 
       setParticipants((currentParticipants) => ({
         ...currentParticipants,
         [slotId]: {
           ...currentParticipants[slotId],
           user: result.user,
-          identity: {
-            ...currentParticipants[slotId].identity,
-            uploadedPublicKey: currentParticipants[slotId].identity.publicKey,
-          },
+          identity: nextIdentity,
         },
       }));
-      setStatus(`${result.user.username} uploaded a new public key. The private key never left the browser.`);
-      await refreshAllConversationViews();
+
+      if (showStatus) {
+        setStatus(
+          `${result.user.username} uploaded a new active public key. Private keys remain local or encrypted in backup.`
+        );
+        await refreshAllConversationViews();
+      }
+
+      return nextIdentity;
     } catch (requestError) {
       setError(`Could not upload the public key for ${participant.username}: ${requestError.message}`);
+      throw requestError;
     }
+  }
+
+  async function handleUploadKey(slotId) {
+    await uploadParticipantPublicKey(slotId);
   }
 
   async function handleRegenerateKey(slotId) {
     try {
-      const nextIdentity = await generateLocalIdentity();
+      const nextIdentity = await generateLocalIdentity(participantsRef.current[slotId].identity);
 
       setParticipants((currentParticipants) => ({
         ...currentParticipants,
@@ -498,7 +530,7 @@ export default function DemoSurface() {
         },
       }));
       setStatus(
-        `${participantsRef.current[slotId].username} generated a fresh local keypair. Re-upload before sending.`
+        `${participantsRef.current[slotId].username} generated a fresh local keypair while keeping older keys in the local keyring. Re-upload before sending.`
       );
     } catch {
       setError("Could not generate a new local keypair for the demo.");
@@ -528,16 +560,23 @@ export default function DemoSurface() {
         throw new Error("log in both participants before sending messages");
       }
 
+      const senderIdentity = isIdentityPublicKeyUploaded(sender.identity)
+        ? sender.identity
+        : await uploadParticipantPublicKey(activeSenderRef.current, { showStatus: false });
       const receiverKey = await getUserPublicKey(sender.token, receiver.username);
       const encryptedMessage = await encryptMessage({
         plaintext: messageDraft,
-        senderIdentity: sender.identity,
+        senderIdentity,
         receiverPublicKey: receiverKey.publicKey,
       });
 
       await sendConversationMessage(sender.token, receiver.username, encryptedMessage);
       setMessageDraft("");
-      setStatus(`${sender.user?.username || sender.username} encrypted locally and sent ciphertext to ${receiver.username}.`);
+      setStatus(
+        isIdentityPublicKeyUploaded(sender.identity)
+          ? `${sender.user?.username || sender.username} encrypted locally and sent ciphertext to ${receiver.username}.`
+          : `${sender.user?.username || sender.username} uploaded the fresh public key, then sent ciphertext to ${receiver.username}.`
+      );
       await refreshAllConversationViews();
     } catch (requestError) {
       setError(`Could not send the encrypted message: ${requestError.message}`);
