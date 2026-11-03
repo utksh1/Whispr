@@ -72,6 +72,16 @@ AWS ECS/Fargate + RDS PostgreSQL + S3 + secrets/monitoring is a reference implem
 
 [Cloud Hosting and Deployment](./Docs/16_Cloud_Hosting_and_Deployment.md) documents the infrastructure profiles and security gates.
 
+## Preferred initial deployment: Vercel + Render (TARGET / NOT DEPLOYED)
+
+**Vercel** is the preferred Next.js frontend host (`client/`); **Render** is the preferred backend host for Whispr's authenticated API, Socket.IO and the selected reviewed OIDC provider, with **paid Render PostgreSQL** for pending ciphertext and metadata. **Render Key Value/Redis remains optional**.
+
+**No AWS S3 or Cloudflare R2 is necessary for text-only encrypted messaging.** When secure file/image/video sharing is built, use **private Cloudflare R2** as the preferred encrypted-media store with scoped short-lived signed URLs and browser-side encryption. AWS S3 and other approved blob providers remain interchangeable through a storage adapter; don't store user uploads in Render service files or expose a public R2 bucket.
+
+The choice does **not** change client-local chat history or the gradual removal of legacy Supabase. No Vercel, Render or R2 service has been deployed by this documentation change.
+
+[Vercel + Render + Optional R2 deployment guide](./Docs/17_Render_Vercel_R2_Deployment.md).
+
 ## Setup for current code
 
 ### Web client
