@@ -21,7 +21,7 @@ Do **not** optimize merely by introducing more tables, replicas, caches, shardin
 | --- | --- | --- |
 | Protected IndexedDB / native encrypted SQLite | Per-device conversation history, encrypted ratchet/session state, local outbox, identity pins and local attachment index | Other users' history |
 | **Whispr-controlled PostgreSQL (managed cloud DB is acceptable)** | Whispr account/OIDC identity mapping, device directory, signed public prekeys, **pending** envelopes, minimal idempotency/ACK, outbox, encrypted media metadata | Permanently delivered messages, auth passwords or plaintext |
-| **Private S3-compatible self-hosted object storage** | **Temporary encrypted** file chunks | File plaintext or decryption keys |
+| **Private cloud object storage (or self-operated S3-compatible alternative)** | **Temporary encrypted** file chunks | File plaintext or decryption keys |
 | Redis (optional) | Presence, gateway mapping, safe public metadata caches and isolated abuse counters | Pending deliveries, durable ACK state, private keys |
 | CDN (optional) | Immutable public assets and **authorized ciphertext media** | Private API JSON, decrypted previews or recovery material |
 
@@ -275,7 +275,7 @@ See [Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md). The DD
 
 ## 10. Migration plan — not authorized to execute
 
-1. **Observe**: export live legacy schema/RLS from the authorized Supabase instance; reconcile `server/supabase/migrations/` against `client/src/lib/supabase-chat.js`. Separately test new Whispr-owned accounts/OIDC identity mapping and self-managed PostgreSQL schemas. Run `EXPLAIN (ANALYZE, BUFFERS)` for representative queries in an isolated environment.
+1. **Observe**: export live legacy schema/RLS from the authorized Supabase instance; reconcile `server/supabase/migrations/` against `client/src/lib/supabase-chat.js`. Separately test new Whispr-owned accounts/OIDC identity mapping and private Whispr PostgreSQL schemas (managed or self-operated). Run `EXPLAIN (ANALYZE, BUFFERS)` for representative queries in an isolated environment.
 2. **Additive schema**: provision **private PostgreSQL (managed cloud DB acceptable)** with Whispr account/OIDC mapping, device directory, ledger, pending ciphertext and outbox while preserving Supabase legacy `messages` and encrypted key backups for read-only migration. Do not drop legacy tables or rotate/destroy keys.
 3. **Security gate**: verify grants/RLS/backend authorization, idempotent retries, expiry/ACK races, key bundle verification, account deletion semantics and protected local storage.
 4. **Verified identity and dual-read migration**: link existing Supabase identities to self-hosted OIDC accounts with real proof (never email-only merging); recover password-derived legacy key backups **before** changing credentials; clients paginate old ciphertext, decrypt locally, verify and persist protected local copies.
