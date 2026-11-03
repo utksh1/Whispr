@@ -46,6 +46,12 @@ Additional exercises: repeated sender retries create one logical message; stale 
 
 These are **future integration tests**, not current proof from `/demo`. See [Scalability and Caching](./13_Scalability_and_Caching.md).
 
+## Future Vercel + Render deployment acceptance (PLANNED)
+
+Demonstrate the same Whispr app on **Vercel `client/` + Render `server/` + paid PostgreSQL**, with verified OIDC. First send/receive **text-only encrypted messages with no R2/S3 credentials**, recovering after Render WebSocket restarts. Later enable client-encrypted media using a **private Cloudflare R2 bucket** and prove expired signed URLs, wrong-device access and malformed ciphertext are rejected. This is planned, not supported by the current `/demo` path.
+
+See [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md).
+
 ## Evidence and release criteria
 
 Current demo tests cannot stand in for actual cryptographic protocol audits, browser E2E tests, RLS-negative tests or proper key recovery validation. Do not demonstrate a planned feature as though already released.
