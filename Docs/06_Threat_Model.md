@@ -75,6 +75,22 @@ Server passwords, OAuth credentials and MFA secrets should remain inside the sel
 
 See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
 
+## Vercel + Render + Cloudflare R2 hosting threats (TARGET)
+
+| Risk | Potential failure | Required control |
+| --- | --- | --- |
+| Vercel SSR/analytics receives decrypted content | Backend/CDN logs or cache reveal plaintext | Keep message decrypt and rendering on client; no plaintext in server actions, SSR, telemetry or shared HTTP cache |
+| Render free service idles or restarts | Socket disconnect, late notifications | Always-on paid service for real users; durable PostgreSQL mailbox and reconnect sweeps |
+| Render free Postgres expires | Lost device directory or undelivered ciphertext | Paid PostgreSQL with tested backup/restore; free DB for disposable experiments only |
+| Render filesystem used for user attachments | Objects lost on restart or incompatible with horizontal scale | Text-only: no blob store; attachments: dedicated private object storage |
+| R2 bucket accidentally public | Ciphertext and metadata exposed to anyone | Private bucket; no public `r2.dev` for user files; presigned GET/PUT only after device authorization |
+| Presigned R2 URL leaked or over-broad | Unauthorized ciphertext fetch/upload while capability valid | Scope object, operation, size and expiry; short TTL, no URL logging, request quotas |
+| R2 CORS misconfigured | Upload failure or excessive browser-origin access | Exact Vercel production/preview origins and required methods/headers; never treat CORS as authorization |
+| Encryption key included in media metadata | Breaks E2EE of attachment | Only ciphertext/object reference at R2 and Render; key + plaintext file name inside encrypted message |
+| OIDC redirect/session mix-up across domains | Account takeover or session leakage | Exact issuer/audience/redirect validation, PKCE, CSRF cookie boundaries and restricted trusted origins |
+
+**R2 is optional** and introduces no risk surface in text-only deployments when absent. AWS S3 is not required. Deployment and threat test matrix: [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md).
+
 ## Out of scope for initial implementation
 
 Anonymity against global network observers, compromised end-user devices, guaranteed deletion after recipient download, anti-screen-capture promises, protection against a fully compromised browser JavaScript origin, and sophisticated traffic analysis defenses.
