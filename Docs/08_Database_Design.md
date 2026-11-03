@@ -24,7 +24,6 @@
 | `mailbox_events` | event ID, destination device, publication/attempt state | **Transactional notification outbox** in same acceptance transaction; bounded cleanup |
 | `media_objects` | opaque ID, owner, ciphertext size, expiry, lifecycle status | Encrypted object references only; TTL cleanup |
 | `encrypted_backups` | owner/device, backup version, ciphertext pointer, salt/KDF params, timestamp | **Opt-in**, opaque E2EE recovery; independent secret |
-| `rate_limit_state` | account/device/IP bucket, count, expiration | Abuse controls, minimum logging |
 
 Explicit account/device authorization and participant/destination checks are necessary for **every** queue and media operation. Server-generated schema must never depend on recipient usernames being trustworthy identity proofs.
 
@@ -41,9 +40,11 @@ ClientLocalStore
 ├── crypto_session_state  # ratchet/prekey state, protected
 ├── device_directory      # pinned identity fingerprints / warnings
 ├── attachments           # local encrypted objects and manifests
-├── sync_checkpoints      # replay-safe mailbox cursor
+├── mailbox_sweep_state    # per-sweep pagination cursor; restart on reconnect
 └── backup_metadata       # local backup status and recovery state
 ```
+
+Security rate-limit counters belong in an appropriately isolated ephemeral store where possible (or a deliberately designed conservative backend fallback), not in a high-write relational table by default. They must not be evicted by normal metadata cache pressure.
 
 A browser database is **not automatically encrypted at rest**. Define a separate local-at-rest encryption layer and protected key management, test storage eviction and report recovery limitations honestly. Ideally write crypto-state transitions, outbox/inbox records, and deduplication markers atomically.
 
