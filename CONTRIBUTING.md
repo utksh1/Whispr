@@ -48,6 +48,14 @@ curl http://localhost:4000/health
 6. **Safe migration:** do not drop existing encrypted history; verify client import and recovery first.
 7. **Data minimization:** least-privilege RLS, explicit TTL/retention, strict authorization on every mailbox/media operation.
 
+## Cache and scaling design reviews
+
+Any PR introducing Redis, shared edge caching, realtime fanout, partitioned mailbox storage or media transfer must document: authoritative owner of each record, cache allowlist and TTL, invalidation/revocation safety, per-tenant authorization, data retention, idempotency and ACK semantics, retry/backpressure behavior, and a concrete fault-injection test.
+
+**Not allowed:** Redis-only pending message delivery; caching private key/backup material, plaintext or bearer tokens in shared systems; treating a WebSocket publish as a durable queue commit; silently disabling rate limiting when shared cache fails; unbounded media proxying in the messaging API.
+
+Design targets in [Scalability and Caching](./Docs/13_Scalability_and_Caching.md) are not implemented or benchmarked by documentation alone.
+
 ## Validation
 
 ```bash
