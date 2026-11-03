@@ -72,6 +72,14 @@ Redis Pub/Sub and realtime delivery are merely wake-up hints. The authenticated 
 
 See [Scalability and Caching](./13_Scalability_and_Caching.md).
 
+## Auth and E2EE separation after Supabase removal (TARGET)
+
+Moving from Supabase Auth to a **self-hosted standards-based OIDC identity provider** does **not** change the fundamental E2EE rule: the authentication provider knows the account but must **never** know the plaintext device private key, ratchet state, attachment key or recovery secret. Whispr Auth Controllers validate OIDC tokens and map verified issuer/subject identities to local accounts, while independent device-enrollment verification, identity pins, signed public bundles and safety numbers bind cryptographic peers.
+
+**Migration warning:** the legacy browser encrypts private-key backups using a key derived from the Supabase sign-in password. Changing credentials or switching OAuth/login providers will not automatically restore those keys. Recover with the old secret, test a fresh-device restore and explicitly re-encrypt using a separate recovery secret *before* removing legacy Auth. Failed recovery must not overwrite remote backup state.
+
+Self-hosting an identity provider, Node controllers or object storage does not eliminate hostile-JavaScript/endpoint compromise or server-controlled directory-key substitution. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
 ## Security boundaries and honest claims
 
 - A **database-only** breach should expose ciphertext and limited metadata, assuming strong local key security.
