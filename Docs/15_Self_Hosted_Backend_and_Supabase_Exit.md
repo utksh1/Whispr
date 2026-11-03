@@ -9,15 +9,23 @@
 | Retain Supabase platform for target runtime? | **No.** Replace Auth, PostgREST/browser-direct tables, Realtime and Storage integrations. |
 | Authentication | Prefer a **self-hosted standards-based OIDC identity provider**; evaluate Keycloak or an equally reviewed alternative. Whispr Auth Controller validates tokens and maps trusted OIDC identities to local accounts. **Do not write custom password/OAuth/session cryptography.** |
 | Backend | Node.js/TypeScript modular monolith initially, extracting and hardening useful Express/Socket.IO code; modular controllers, services, repositories, policies and background workers |
-| Database | **Self-managed PostgreSQL** for minimal identity/device metadata, key-bundle data, short-lived per-device ciphertext mailbox, ACK/dedup ledger, event outbox, optional encrypted-backup metadata and media metadata |
+| Database | **Whispr-controlled PostgreSQL schema**, preferably on a private cloud-managed PostgreSQL service for production; self-operated PostgreSQL is optional. Minimal device/identity metadata, pending ciphertext, dedup/ACK, event outbox and media metadata only |
 | Realtime | Whispr-controlled WebSocket/Socket.IO gateways; events are wake-up hints, not the durable mailbox |
 | Cache | Optional Redis for reconstructible presence/gateway routing, allowlisted public metadata and separately protected rate limits; never authoritative for pending messages |
-| Media | Private **S3-compatible object store** (self-hosted option such as MinIO), ciphertext-only and scoped temporary transfer credentials; optional authorized CDN later |
+| Media | Private **cloud object storage** (e.g. Amazon S3) or self-operated S3-compatible store (e.g. MinIO), ciphertext-only with scoped temporary transfer capabilities; optional authorized CDN later |
 | History | Encrypted client-owned indexed storage (browser IndexedDB/OPFS candidates; evaluated encrypted SQLite for native clients), **not permanent server-side history** |
-| Deployment | Docker Compose in isolated development; automated backed-up single-region deployment first; high availability and Kubernetes only if requirements demand |
+| Deployment | **Cloud-hosted application services** with cloud-managed PostgreSQL/object storage where suitable; Docker Compose for isolated development; backed-up single-region deployment first; high availability/Kubernetes only when needed |
 | Versioning | **No new “2.0” branch/product/doc tree.** Contracts may be versioned (e.g. `/v1` HTTP) independently of product branding. |
 
 **Why:** Owning the runtime lets Whispr control authorization, retention, backup/recovery, observability and scaling boundaries. It does **not** make security automatic: operations, IdP patching, disaster recovery and credential recovery become Whispr's responsibility.
+
+## Cloud hosting clarification (TARGET)
+
+“Self-hosted Whispr” means **Whispr owns the application controllers, service contracts, account/device authorization, cryptographic rules and data**, not that a team must manually maintain every physical server. The same design can run **in the cloud**, using a container platform for Whispr-owned Node.js/Socket.IO services, a separately operated OIDC provider (such as Keycloak running on cloud containers), **cloud-managed PostgreSQL**, private cloud object storage (such as S3), optional managed Redis, cloud IAM, secrets and monitoring.
+
+**Managed PostgreSQL or object storage does not bring Supabase back.** The product remains independent of Supabase-specific APIs and owns its schema and retention policy. Cloud operations still require IAM, network isolation, backups, disaster-recovery testing, monitoring, cost budgets and careful account migration. AWS ECS/Fargate + RDS PostgreSQL + S3 is an illustrative deployment profile, **not an approved purchasing decision**.
+
+See [Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md) for the deployment diagram, alternative providers and implementation gates.
 
 ## 2. Logical system diagram
 
@@ -37,9 +45,9 @@ flowchart TB
     BACKUP["Recovery Controller: opaque E2EE backups"]
     WORKERS["Workers: outbox publication, TTL expiry, orphan cleanup"]
   end
-  PG[("Whispr PostgreSQL: accounts, devices, pending ciphertext, dedup, outbox, metadata")]
+  PG[("Whispr PostgreSQL schema: private managed or self-operated DB")]
   REDIS[("Optional Redis: presence, routing, safe public cache, rate limits")]
-  OBJ[("Private S3-compatible encrypted object store")]
+  OBJ[("Private cloud object storage: ciphertext only")]
   EDGE --> AUTH & DEVICE & KEYS & MAIL & MEDIA & RT & BACKUP
   AUTH <--> IDP
   AUTH --> PG
