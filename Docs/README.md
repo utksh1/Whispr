@@ -24,11 +24,12 @@ At present, `/app` is a browser-direct Supabase encrypted-chat prototype with re
 | [08 — Database Design](./08_Database_Design.md) | Current schema drift, server pending mailbox and local encrypted data |
 | [09 — API Design](./09_API_Design.md) | Existing APIs and explicitly proposed versioned mailbox/media contracts |
 | [10 — Development Roadmap](./10_Development_Roadmap.md) | Ordered PR work and validation gates |
-| [Supabase Setup](./10_Supabase_Setup.md) | Current auth, tracked SQL and safe target migration |
+| [Legacy Supabase Setup and Exit](./10_Supabase_Setup.md) | Historical auth/config, tracked SQL, user recovery and decommissioning |
 | [11 — Demo Flow](./11_Demo_Flow.md) | Isolated demo and honest security demonstration |
 | [12 — Pitch Notes](./12_Pitch_Notes.md) | Claims grounded in current and intended capabilities |
 | [13 — Scalability and Caching](./13_Scalability_and_Caching.md) | Cache hierarchy, Redis, gateway and mailbox scale, CDN security, TTL, SLO and failure matrix |
-| [14 — Optimized Database Design](./14_Optimized_Database_Design.md) | Physical pending-mailbox schema, dedup ledger, indexing, ACK/expiry races, encrypted local indexes and migration constraints |
+| [14 — Optimized Database Design](./14_Optimized_Database_Design.md) | Self-managed PostgreSQL schema, identity mappings, mailbox, indexes and migration constraints |
+| [15 — Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md) | Whispr controllers, self-hosted OIDC, private infrastructure and staged Supabase exit |
 
 ## Scalability and caching reference
 
@@ -36,7 +37,13 @@ At present, `/app` is a browser-direct Supabase encrypted-chat prototype with re
 
 ## Optimized physical database design
 
-[**14 — Optimized Database Design**](./14_Optimized_Database_Design.md) refines the target schema: normalized device identities and key bundles, pending ciphertext separated from small delivery/ACK idempotency tombstones, transactional event outbox, minimal media-object metadata, targeted per-device and expiry indexes, transactional client-local records, migration gates and realistic partitioning criteria. Example SQL is **design-only**, not an applied Supabase migration.
+[**14 — Optimized Database Design**](./14_Optimized_Database_Design.md) refines the target schema: normalized device identities and key bundles, pending ciphertext separated from small delivery/ACK idempotency tombstones, transactional event outbox, minimal media-object metadata, targeted per-device and expiry indexes, transactional client-local records, migration gates and realistic partitioning criteria. Example SQL is **design-only**, not an applied database migration.
+
+## Self-hosted platform decision (TARGET / NOT IMPLEMENTED)
+
+The current `/app` still uses Supabase; the **target runtime removes Supabase Auth, PostgREST/direct DB APIs, Realtime and Storage**. Whispr owns backend controllers, a private self-managed PostgreSQL mailbox, Socket.IO realtime gateways, and private S3-compatible encrypted object storage. A reviewed self-hosted OIDC provider handles login; Whispr controllers enforce account/device authorization. Optional Redis remains non-authoritative.
+
+[**15 — Self-Hosted Backend and Supabase Exit**](./15_Self_Hosted_Backend_and_Supabase_Exit.md) specifies the architecture and the safe staged migration. Old ciphertext, verified identity mappings and encrypted key backups must be recoverable before decommissioning legacy services.
 
 ## Core decisions
 
