@@ -7,10 +7,10 @@
 | Legacy Supabase area | Current role | Whispr target |
 | --- | --- | --- |
 | Supabase Auth | `/app` email/password, Google OAuth and sessions | A **self-hosted, reviewed OIDC identity provider** (evaluate Keycloak or equivalent); Whispr Auth Controller verifies issuer/audience/JWKS and maps verified identities to local accounts |
-| PostgREST / browser-direct data | Browser reads/writes `profiles`, `user_keys`, `messages` and `private_key_backups` | Authenticated Whispr controllers and private self-managed PostgreSQL; no direct browser database access |
+| PostgREST / browser-direct data | Browser reads/writes `profiles`, `user_keys`, `messages` and `private_key_backups` | Authenticated Whispr controllers and private Whispr-controlled PostgreSQL (cloud-managed or self-operated); no direct browser database access |
 | Supabase Realtime | Browser subscriptions on message rows | Whispr-managed Socket.IO/WebSocket wake-up hints + durable mailbox fetch |
 | Supabase Postgres | Auth-linked profiles, ciphertext-only permanent server history, keyring backups | Whispr accounts/device/prekey directory, **pending ciphertext only**, small dedup ledger and transactional notification outbox |
-| Supabase Storage (future option) | No complete media pipeline established in current product | Private self-hosted S3-compatible object store, client-encrypted files and scoped short-lived capabilities |
+| Supabase Storage (future option) | No complete media pipeline established in current product | Private cloud object storage (or S3-compatible self-operated alternative), client-encrypted files and scoped short-lived capabilities |
 
 See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md) and [Tech Stack](./07_Tech_Stack.md).
 
@@ -68,7 +68,7 @@ Do **not** commit real passwords, OAuth client secrets, object-store keys or OID
 ## Required non-destructive migration gates
 
 1. **Inventory and backup:** authorized export of Supabase users, key directory, historical messages and encrypted backups; verify object counts, schema/RLS and independent restore.
-2. **Provision target:** self-hosted PostgreSQL, an evaluated OIDC provider, private object store and Whispr-controlled API; test service connectivity and least privilege without old-user data.
+2. **Provision target:** private cloud-managed or self-operated PostgreSQL, an evaluated cloud-hosted OIDC provider, private object store and Whispr-controlled API; test service connectivity and least privilege without old-user data.
 3. **Identity matching:** map `(legacy Supabase identity, verified new OIDC issuer+subject)` to a stable Whispr account UUID by proof of both identities or controlled verified recovery; **never link by matching email alone**.
 4. **Cryptographic recovery:** old keyring restoration and re-encryption under a *separate* recovery secret; validate on a fresh device before invalidating old login credentials.
 5. **New mailbox/data flows:** create `accounts`/`account_identities`, `devices`, signed/prekeys, `delivery_keys`, `pending_envelopes`, `mailbox_events` and private encrypted media metadata in self-hosted PostgreSQL. Verify API authorization and race/expiry/replay tests.
