@@ -1,51 +1,45 @@
 # Whispr — Core Features
 
-This document lists target features for the project and should not be read as a completion checklist for the current codebase.
+> **One existing product, incremental redesign.** This is the target feature backlog, **not** a claim that these capabilities are already shipped.
 
-## Must-Have Features
-1. **User authentication**
-   - Secure signup and login
-   - Session handling
+## Current application
 
-2. **Device keypair generation**
-   - Public/private keypair generated on the client
-   - Public key shared with backend
-   - Private key never leaves the device in plaintext
+- `/app`: Supabase account authentication, browser-side P-256/AES-GCM message encryption, server-stored ciphertext, Realtime updates, account discovery and encrypted remote keyring backup.
+- `/demo`: separate Express/Socket.IO demonstration with optional ciphertext-tampering capability.
+- Existing image/file/video flows, secure per-device ratcheting, local encrypted message history, reliable offline outbox, multi-device device fanout and protected local key persistence are **not implemented as designed below**.
 
-3. **End-to-end encrypted one-to-one messaging**
-   - Messages encrypted before leaving sender device
-   - Messages decrypted only on receiver device
+## P0 — Core architecture and usable private messaging
 
-4. **Encrypted message storage**
-   - Backend stores only ciphertext
-   - Plaintext never written to server database
+| Feature | Acceptance requirement |
+| --- | --- |
+| Encrypted local message history | Messages persist in device-local encrypted database; no permanent server conversation archive |
+| Per-device pending mailbox | Authenticated ciphertext fetch, idempotent send, durable ACK, configurable TTL, expiry cleanup |
+| Offline reliability | Durable sender outbox; retry after restart; ACK only after recipient's local commit |
+| Reviewed one-to-one E2EE | Authenticated session setup, forward-secret ratcheting, replay and out-of-order handling |
+| Key verification | Safety numbers/QR verification, pinned identity, visible unexpected key-change warnings |
+| Secure key/recovery management | No plaintext PKCS#8 in `localStorage`, separate login/backup secrets, no silent backup overwrite |
+| Encrypted image and document transfer | Client encryption, authenticated manifest/chunks, private temporary object storage |
+| Account and privacy settings | Device/security settings, retention disclosure, safe errors, recoverability warnings |
+| Security hardening | Strong mandatory secrets, closed demo admin surface, RLS/tenant isolation, negative CI tests |
 
-5. **Message integrity**
-   - Detect tampering or corruption
-   - Ensure receiver gets authentic data
+## P1 — Product completeness
 
-6. **Secure key exchange**
-   - Sender retrieves receiver public key
-   - Session/message key established safely
+Resumable video and voice-note attachments; local-only message search; message statuses (queued, accepted, delivered, optionally read); block/report controls; delete-for-me and best-effort remote delete requests; encrypted backup export/restore; multiple authorized devices with device-specific sessions and per-device delivery.
 
-7. **Real-time delivery**
-   - WebSocket or Socket.IO based live messaging
-   - Offline users can fetch encrypted messages later
+## P2 — Explicitly deferred
 
-## Good-to-Have Features
-- Disappearing messages
-- Read receipts with privacy-safe design
-- Encrypted file attachments
-- QR-based key verification
-- Multi-device support
-- Key rotation
-- Secure notifications with minimal leakage
+Group messaging (consider MLS), encrypted calling, social/discover feeds, rich reactions, large-scale server federation and anonymity features. Do not delay secure one-to-one chat to build these.
 
-## Demo-Friendly Features
-- “Compromised server” admin panel showing ciphertext only
-- Side-by-side plaintext on client vs ciphertext in database
-- Message tampering demo showing verification failure
+## UX guarantees and non-guarantees
 
-## Implementation Note
+- "Server accepted" is not "recipient delivered"; "delivered to device" is not "read by human".
+- "Delete for everyone" is best effort; it cannot remove screenshots, exported copies or offline backups.
+- Browser-local storage may be cleared/evicted. Users need recovery options and explicit warnings.
+- The relay can know delivery metadata. Avoid claiming the service is metadata-blind.
+- Encrypted file upload must not bypass client-side content validation and safe preview rules.
 
-As features move from planned to implemented, update this file and the related architecture, API, and README documentation together.
+## Demo tooling policy
+
+A ciphertext inspection/tampering demo may be preserved in a separate, non-production-only environment with explicit authorization and never with public privileged admin access. Demo-only controls must not be framed as production features.
+
+See [System Architecture](./04_System_Architecture.md), [Security Flow](./05_Cryptography_Security_Flow.md), [Roadmap](./10_Development_Roadmap.md).
