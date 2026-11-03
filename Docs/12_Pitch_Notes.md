@@ -23,6 +23,12 @@ Whispr includes a Next.js/Supabase product route and a separate Express/Socket.I
 - User-controlled recovery independent of login credentials.
 - Explicit privacy limits for server metadata, hostile web-origin scripts and compromised devices.
 
+## Scalability story (TARGET; not an observed benchmark)
+
+Whispr is designed so chat history remains local while an authoritative pending ciphertext mailbox supports offline devices. Stateless realtime gateways can be scaled independently; Redis may improve ephemeral presence/routing and permitted metadata reads but cannot become the message source of truth. File bytes move as client-encrypted chunks through private object storage rather than overloading the messaging API. A single modular backend is deliberately preferred before distributed infrastructure.
+
+Do not advertise throughput, latency, global availability, Redis, CDN or multi-region capability as **implemented or measured** until deployment and tests support the claim. The detailed plan is [Scalability and Caching](./13_Scalability_and_Caching.md).
+
 ## A grounded closing line
 
 "Whispr is moving from encrypted chat as a feature toward a local-first secure-messaging architecture where the server delivers encrypted data but is not the permanent home of conversations."
