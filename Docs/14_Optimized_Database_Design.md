@@ -220,6 +220,14 @@ LocalStore (logical stores; encrypted values)
 
 Local full-text search, if added, must stay on the endpoint and not create an unprotected persistent plaintext index. Use protected records, an unlock-time ephemeral search index or an evaluated encrypted local indexing strategy. IndexedDB alone does **not** encrypt at rest; backups and browser eviction remain product requirements.
 
+## Deployment and deferred media storage (TARGET)
+
+For initial deployment, run this **Whispr-owned PostgreSQL schema on paid Render PostgreSQL**. Its private connection, credentials, migrations, backup/restore, purge jobs, and account/device authorization must be tested. The choice of managed database host does not alter the logical table design, local E2EE trust boundaries or requirement to purge delivered ciphertext.
+
+**Text-only deployment:** do not require R2 or AWS S3, and do not populate `media_objects` without an attachment feature. A media table may be part of an approved additive schema but the API must work when media storage is disabled. For encrypted files, prefer private **Cloudflare R2**, keeping only opaque object metadata/retention in Render PostgreSQL; direct browser transfers require scoped signed R2 S3 API URLs and strictly configured CORS. **AWS S3 remains optional** behind the same adapter.
+
+Reference: [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md).
+
 ## 7. Storage lifecycle and measurements
 
 | Record | Created | Removed |
