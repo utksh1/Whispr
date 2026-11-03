@@ -50,6 +50,16 @@ Whispr can deploy its **own controllers and reviewed OIDC provider on a cloud co
 
 See [Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md) for topology, cost controls, IAM boundaries, WebSocket scaling and recovery gates. Cloud-managed infrastructure is compatible with **no Supabase target dependency**.
 
+## Preferred deployment providers (TARGET / NOT RUNNING)
+
+The first planned cloud deployment uses **Vercel for Next.js `client/`**, **Render for Whispr-controlled backend API + Socket.IO**, a maintained OIDC provider deployed on Render, and **paid Render PostgreSQL** for durable pending ciphertext and metadata. Keep Redis-compatible **Render Key Value optional**, adding it only for multi-gateway coordination or measured cache needs.
+
+**Media is a separate feature:** ship text-only messaging without any object-storage requirement. When encrypted attachments are implemented, prefer a **private Cloudflare R2 bucket** and a replaceable S3-compatible storage adapter, using short-lived signed URL capabilities for ciphertext. No **AWS S3** account/service is required. Other object stores are interchangeable only after adapter/security tests. **Render local disks are not suitable as scalable shared attachment storage.**
+
+Vercel and Render deployment settings must distinguish browser-public API/OIDC config from server-only DB/IdP/R2 credentials. Use always-on paid Render web services and backed-up paid PostgreSQL for actual users; a free-tier sleeping backend or expiring DB is for disposable tests only.
+
+See [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md). AWS ECS/RDS/S3 in [Cloud Hosting](./16_Cloud_Hosting_and_Deployment.md) remains an **alternative**.
+
 ## Browser trust limitation
 
 A web client served malicious JavaScript can lose plaintext confidentiality, even when servers are self-hosted. Web Crypto non-extractable keys alone cannot defeat same-origin malicious script. A signed desktop/mobile app is a potential future hardening path.
