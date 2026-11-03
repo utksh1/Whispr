@@ -24,6 +24,12 @@ Crash-safe ratchet and local DB state; asynchronous key exchange; malicious-dire
 
 Demonstrate two independent devices exchanging E2EE messages while one is offline; verified local persistence; server queue empty after recipient's durable ACK; attachment ciphertext unreadable by object store; repeated/reordered delivery safe; identity substitution detected/warned; failure to decrypt backup never overwrites it; browser/DB breach limitations documented.
 
+## Additional scalability success criteria (TARGET)
+
+At agreed peak load, the system must preserve per-device mailbox delivery despite Redis notification loss, gateway restarts, duplicate request retries and recipient reconnects. It must apply quotas/backpressure rather than falsely accept undurable messages, retain only bounded pending ciphertext, and prevent a cached device key or CDN object from bypassing access rules. Client-local messages must be recoverable from explicitly configured encrypted backups when storage is lost.
+
+Candidate service targets and measurable traffic formulas are specified in [Scalability and Caching](./13_Scalability_and_Caching.md). No benchmark or operational SLO is claimed yet.
+
 ## Non-goals
 
 Immediate group chat, calls, federation, high-scale distributed microservices, guaranteed recipient deletion, anonymity from global observers, or protection from an actively compromised endpoint.
