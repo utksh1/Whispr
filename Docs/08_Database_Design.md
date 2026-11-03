@@ -8,7 +8,7 @@
 - `/demo` uses Express repository adapters; its PostgreSQL shape is separate and not automatically compatible with the Supabase migrations.
 - Current tracked SQL under `server/supabase/migrations/` and the `client/src/lib/supabase-chat.js` queries diverge (including some profile, key and message columns). There is no committed canonical `supabase/whispr_schema.sql` at the path older docs referenced.
 
-**Before altering production data:** inventory the **legacy Supabase** DB schema and export/backup ciphertext; verify old key recovery and reconcile migrations in an isolated test database. The **target self-managed PostgreSQL** has a separate, versioned schema with local account IDs mapped to verified OIDC subjects. Never execute a legacy Supabase schema as the target's production schema.
+**Before altering production data:** inventory the **legacy Supabase** DB schema and export/backup ciphertext; verify old key recovery and reconcile migrations in an isolated test database. The **target Whispr-controlled PostgreSQL (cloud-managed or self-operated)** has a separate, versioned schema with local account IDs mapped to verified OIDC subjects. Never execute a legacy Supabase schema as the target's production schema.
 
 ## Target: server-owned operational state
 
@@ -26,7 +26,7 @@
 | `media_objects` | opaque ID, owner, ciphertext size, expiry, lifecycle status | Encrypted object references only; TTL cleanup |
 | `encrypted_backups` | owner/device, backup version, ciphertext pointer, salt/KDF params, timestamp | **Opt-in**, opaque E2EE recovery; independent secret |
 
-The target is **Whispr-owned PostgreSQL accessed through Whispr backend controllers**. Login is handled by a self-hosted OIDC provider; Whispr's DB never stores IdP password hashes/OAuth secrets. Explicit account/device authorization and participant/destination checks are necessary for **every** queue and media operation. Server-generated schema must never depend on recipient usernames being trustworthy identity proofs. Use least-privilege DB roles; RLS is optional defense-in-depth, not a replacement for controller authorization.
+The target is **Whispr-owned PostgreSQL schema accessed through Whispr controllers**, hosted on a private cloud-managed PostgreSQL service or self-operated instance. Login is handled by a self-hosted OIDC provider; Whispr's DB never stores IdP password hashes/OAuth secrets. Explicit account/device authorization and participant/destination checks are necessary for **every** queue and media operation. Server-generated schema must never depend on recipient usernames being trustworthy identity proofs. Use least-privilege DB roles; RLS is optional defense-in-depth, not a replacement for controller authorization.
 
 ## Target: endpoint-owned data
 
@@ -82,14 +82,20 @@ See [Optimized Database Design](./14_Optimized_Database_Design.md) for an illust
 
 ## Self-hosted schema ownership
 
-The target schema is designed independently from Supabase's `auth.users`, PostgREST and browser RLS access. Use stable `accounts.account_id` UUIDs, verified `(issuer,subject)` in `account_identities`, and foreign keys from devices and other metadata to local account IDs. Store no plaintext messages, IdP password hashes, OAuth refresh tokens or private encryption keys in this database. `server/supabase/migrations/` is **legacy evidence** to preserve until the source data is retired; new DDL belongs in versioned `server/migrations/` after review and test.
+The target schema is designed independently from Supabase's `auth.users`, PostgREST and browser RLS access, and can run on private cloud-managed PostgreSQL without changing its ownership or security boundaries. Use stable `accounts.account_id` UUIDs, verified `(issuer,subject)` in `account_identities`, and foreign keys from devices and other metadata to local account IDs. Store no plaintext messages, IdP password hashes, OAuth refresh tokens or private encryption keys in this database. `server/supabase/migrations/` is **legacy evidence** to preserve until the source data is retired; new DDL belongs in versioned `server/migrations/` after review and test.
 
 See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md), [Optimized Database Design](./14_Optimized_Database_Design.md) and [Legacy Supabase Exit](./10_Supabase_Setup.md).
+
+## Cloud database hosting (TARGET)
+
+Managed PostgreSQL (for example AWS RDS or GCP Cloud SQL) is acceptable and preferable when it reduces operational risk. The Whispr backend owns schema migrations and per-device authorization, while the provider operates the database host, routine maintenance and selected backup facilities. Keep DB access private (no browser connections), scoped credentials and encrypted backups. Validate point-in-time restore, availability objectives, schema migration rollback, network isolation and regional data needs. If an IdP uses PostgreSQL, isolate its schema/role or database from the Whispr mailbox.
+
+This design does **not** require self-operated database hardware and does **not** bring Supabase's Auth/PostgREST/Realtime back. See [Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md).
 
 ## Migration from existing Whispr storage
 
 1. Freeze the current **legacy Supabase** contract; inventory and export the actual tables/RLS and encrypted backups from the authorized deployment.
-2. Provision a **separate self-managed PostgreSQL** schema with stable local accounts/verified OIDC mappings, device/prekey directory, delivery ledger, pending ciphertext and transactional outbox; do not drop legacy `messages`.
+2. Provision a **separate private PostgreSQL database (cloud-managed or self-operated)** with stable local accounts/verified OIDC mappings, device/prekey directory, delivery ledger, pending ciphertext and transactional outbox; do not drop legacy `messages`.
 3. Verify account linking from Supabase Auth to the new self-hosted OIDC provider (never email-only), and restore old password-derived encrypted key backups **before** changing login credentials. Clients then decrypt/persist legacy history locally.
 4. Verify record counts, message decryptability, local backup/recovery and multi-device policy.
 5. Switch **new** messages to the Whispr-controlled pending mailbox protocol behind a feature flag; new clients call backend controllers, not Supabase tables.
