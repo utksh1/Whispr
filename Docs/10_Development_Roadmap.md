@@ -1,49 +1,57 @@
 # Whispr — Development Roadmap
 
-## Phase 1 — Foundation
-- finalize project scope
-- define threat model
-- set up frontend and backend repositories
-- configure database and authentication
+> **This is an incremental redesign of the existing Whispr codebase.** No "Whispr 2.0" repo, duplicate application or separate documentation tree. Status below refers to target work; it is **not complete** just because the current MVP already supports encrypted messaging.
 
-## Phase 2 — Core Security
-- generate client keypairs
-- upload and store public keys
-- build message encryption flow
-- build message decryption flow
+## Guiding decisions
 
-## Phase 3 — Messaging
-- create one-to-one conversations
-- send encrypted messages
-- store ciphertext in database
-- fetch and decrypt messages on client
+- Keep existing Next.js UI, Supabase account authentication and PostgreSQL where they help.
+- Replace permanent server chat history with encrypted local storage and temporary per-device ciphertext mailboxes.
+- Use a reviewed, maintained ratcheting protocol rather than designing custom session cryptography.
+- Build encrypted media as an independent client module with temporary server-side ciphertext objects.
+- Start with a backend **modular monolith**, not Kubernetes or a distributed microservices rollout.
+- Preserve migration/recovery; do not delete current ciphertext history before clients successfully import it.
 
-## Phase 4 — Realtime Experience
-- add WebSocket / Socket.IO messaging
-- handle online and offline delivery
-- add delivery status updates
+## Sequenced work packages / PRs
 
-## Phase 5 — Hardening
-- input validation
-- secure secret storage
-- rate limiting
-- audit basic logs
-- reduce sensitive metadata exposure
+| Order | Work | Deliverables and exit criteria |
+| --- | --- | --- |
+| 01 | **Architecture + threat model** | Finalize trust boundaries, protocol/library evaluation, retention and failure semantics; maintain ADRs |
+| 02 | **Immediate security fixes** | Require strong JWT secrets, isolate demo tampering/admin, prevent public privileged reads/deletes; security-negative tests |
+| 03 | **Database contract reconciliation** | Correct fresh Supabase migrations, RLS tests, separate private email from public directory, identify Express-vs-Supabase adapters |
+| 04 | **Encrypted local persistence** | IndexedDB-backed local repository and safe key boundary; outbox, inbox, migration checkpoints; eviction/crash tests |
+| 05 | **Device identity and key verification** | Signed identity bundles, device registration, key-change warnings, safety number and recovery flow |
+| 06 | **Reviewed E2EE session integration** | Authenticated prekeys/ratchet, per-device sessions, replay/out-of-order test vectors; atomic state commits |
+| 07 | **Temporary encrypted mailbox** | Per-device envelope queues, stable IDs, validated TTL, sender receipts, durable ACK, expiration cleanup |
+| 08 | **Offline sync engine** | Retry/backoff, reconnect/cursor, duplicate suppression and sender-delivery state machine |
+| 09 | **Encrypted attachment engine** | Client encryption, chunk AEAD, quotas, signed scoped download capabilities, object expiry |
+| 10 | **Media UI + chat experience** | Image/document workflows first; video/voice second; local search and accurate delivery states |
+| 11 | **Multiple devices and backup** | Device pairing, independent sessions, account-login-independent recovery secret, versioned recovery |
+| 12 | **Legacy migration + release** | Import/verify old ciphertext on client, safe cutover, security/perf tests, telemetry minimization, docs |
 
-## Phase 6 — Demo Prep
-- create architecture diagram
-- create threat model slide
-- prepare compromised-backend demonstration
-- test full workflow end to end
+## Release gates
 
-## Hackathon MVP
-If time is limited, finish these first:
-1. signup/login
-2. key generation
-3. encrypted one-to-one chat
-4. ciphertext-only storage
-5. server-compromise demo
+**Gate A — safety:** no weak production signing secret, no unauthenticated demo admin capability, strict RLS, no plaintext key export via ordinary local storage, no password-reused backup key.
 
-## Documentation Rule
+**Gate B — functional one-to-one:** audited protocol choice; encrypted local history; durable offline queue; idempotent delivery/ACK; reconnect/replay/crash tests; user-visible identity verification.
 
-As each roadmap item becomes implemented, update the related design document so the repository stays honest about what is complete versus planned.
+**Gate C — attachments:** files always encrypted before upload; authenticated chunking, safe previews, capped sizes, retention cleanup and malicious-object tests.
+
+**Gate D — migration:** source history counted and decryptable, safe old-to-local import, backup recovery verified, old tables deleted only after explicit policy and rollback window.
+
+## Testing and CI
+
+Unit: envelope validation, crypto test vectors, backup errors, local DB and retention.
+
+Integration: PostgreSQL/RLS with nonparticipant accounts, reconnection, ACK retry, untrusted key directory, expired envelopes and authorization.
+
+End-to-end: two isolated browsers/devices, device loss/recovery, XSS-hardened message rendering, encrypted image/document transfer and duplicate/out-of-order events.
+
+Failure injection: crash between session advancement and disk commit, crash before ACK, network partition, corrupted local storage, tampered ciphertext and partial media upload.
+
+No "100% secure", "fully merged" or "production-ready" claim without verified evidence and a separate security review.
+
+## Explicitly deferred
+
+Group chats/MLS, calls, federation, large-scale microservices, optional social/discovery features. Keep existing `/demo` isolated as an educational harness while `/app` becomes the single intended product implementation.
+
+See [API](./09_API_Design.md), [Data](./08_Database_Design.md), [Security](./05_Cryptography_Security_Flow.md), and [Threat Model](./06_Threat_Model.md).
