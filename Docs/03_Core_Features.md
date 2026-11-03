@@ -34,6 +34,18 @@
 
 See [Scalability and Caching](./13_Scalability_and_Caching.md). Redis and CDN are **optional infrastructure**, not preconditions to ship the first local-first core.
 
+### P0 — Self-hosted backend requirements
+
+- No runtime dependency on Supabase Auth, PostgREST, Realtime or Storage **after a verified migration**; legacy connections retained only for permitted temporary read/rollback.
+- Reviewed self-hosted OIDC authentication (Keycloak is a candidate), Whispr Auth Controller token validation and stable verified `(issuer,subject)` → local account UUID mapping; no DIY password/OAuth/JWT cryptography.
+- Device enrollment and revocation as independently secured flows; account login alone cannot silently replace a peer E2EE identity.
+- Self-managed PostgreSQL with device-scoped ciphertext mailbox, compact dedup/ACK ledger, transactional event outbox and narrow data access through Whispr controllers.
+- Whispr-owned Socket.IO gateway for wake-up hints; private S3-compatible object store for client-encrypted attachment bytes; optional Redis for reconstructible coordination only.
+- Safe Supabase exit: authorized legacy export, old backup restore under old credential, independent recovery secret rekey, verified client-local history import, rollback and delayed decommission.
+- Docker Compose isolated development stack, production HTTPS/secret isolation, backup/restore drills and CI security-negative tests.
+
+These are **planned acceptance requirements**, not existing deployed features. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
 ## P1 — Product completeness
 
 Resumable video and voice-note attachments; local-only message search; message statuses (queued, accepted, delivered, optionally read); block/report controls; delete-for-me and best-effort remote delete requests; encrypted backup export/restore; multiple authorized devices with device-specific sessions and per-device delivery.
