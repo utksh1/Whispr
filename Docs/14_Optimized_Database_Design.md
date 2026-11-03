@@ -1,6 +1,6 @@
 # Whispr — Optimized Database Design and Access Patterns
 
-> **Status: PROPOSED / NOT IMPLEMENTED.** This is the physical data-model proposal for the **existing Whispr project**, building on [Database and Data Retention Design](./08_Database_Design.md). It is **not a production migration or drop-in SQL patch**. Review the live Supabase schema, migrations, auth roles, tested E2EE protocol and device-identity rules before implementing.
+> **Status: PROPOSED / NOT IMPLEMENTED.** This is the physical data-model proposal for the **existing Whispr project**, building on [Database and Data Retention Design](./08_Database_Design.md). It is **not a production migration or drop-in SQL patch**. Review the **legacy Supabase** schema and migrations, then validate the new **self-hosted PostgreSQL**, chosen OIDC integration, tested E2EE protocol and device-identity rules before implementing.
 
 ## 1. Optimization objective
 
@@ -20,8 +20,8 @@ Do **not** optimize merely by introducing more tables, replicas, caches, shardin
 | Storage | Authoritative for | Not authoritative for |
 | --- | --- | --- |
 | Protected IndexedDB / native encrypted SQLite | Per-device conversation history, encrypted ratchet/session state, local outbox, identity pins and local attachment index | Other users' history |
-| PostgreSQL (Supabase-backed where applicable) | Account/device directory, signed public prekey metadata, **pending** envelopes, minimal idempotency/ACK, notification outbox, media-object metadata | Permanently delivered messages or plaintext |
-| Private S3-compatible/Supabase object storage | **Temporary encrypted** file chunks | File plaintext or decryption keys |
+| **Self-managed PostgreSQL** | Whispr account/OIDC identity mapping, device directory, signed public prekeys, **pending** envelopes, minimal idempotency/ACK, outbox, encrypted media metadata | Permanently delivered messages, auth passwords or plaintext |
+| **Private S3-compatible self-hosted object storage** | **Temporary encrypted** file chunks | File plaintext or decryption keys |
 | Redis (optional) | Presence, gateway mapping, safe public metadata caches and isolated abuse counters | Pending deliveries, durable ACK state, private keys |
 | CDN (optional) | Immutable public assets and **authorized ciphertext media** | Private API JSON, decrypted previews or recovery material |
 
@@ -31,6 +31,8 @@ No server `conversations`, `messages` or `message_metadata` table is required **
 
 | Table | Critical fields | Retention / access |
 | --- | --- | --- |
+| `accounts` | stable local account UUID, status, created time | Stable internal identity; no password hashes or OAuth credentials |
+| `account_identities` | local account UUID, trusted OIDC issuer, subject | Unique `(issuer,subject)` verified mapping; no email-only merges |
 | `public_profiles` | account ID, opt-in handle/display fields | Long-lived, allowlisted public fields only; never include account email in public projection |
 | `devices` | device ID, account ID, identity public key, created/revoked times, version | Long-lived until account/device deletion; per-device auth binding |
 | `device_prekey_bundles` | device ID, key bundle ID/version, signed public bundle, expiry | Rotate/replenish; atomic one-time prekey consumption required |
@@ -44,13 +46,31 @@ Why separate `delivery_keys` and `pending_envelopes`? After the recipient ACKs, 
 
 ### 3.1 Representative PostgreSQL DDL (design example, not applied)
 
-The following uses Supabase `auth.users` for account identity. This is an **illustrative target subset**: real migrations need role grants, RLS/API authorization, verified identity/prekey protocol, media-specific DDL, constraints for account deletion, backfill and rollback.
+The following uses **Whispr-owned `accounts` rows** with a separate verified **self-hosted OIDC `(issuer,subject)` mapping**. This is an **illustrative target subset**: real migrations need least-privilege DB roles and controller/API authorization, verified identity/prekey protocol, media-specific DDL, account deletion rules, backfill and rollback. Passwords and OAuth secrets stay with the selected identity provider.
 
 ```sql
--- Account identity remains in Supabase auth.users.
+-- Stable account ID is independent of the OIDC provider's subject.
+create table public.accounts (
+  account_id uuid primary key,
+  created_at timestamptz not null default now(),
+  disabled_at timestamptz
+);
+
+create table public.account_identities (
+  account_id uuid not null references public.accounts(account_id) on delete cascade,
+  issuer text not null,
+  subject text not null,
+  linked_at timestamptz not null default now(),
+  primary key (issuer, subject),
+  check (length(issuer) > 0 and length(subject) > 0)
+);
+
+create index account_identities_by_account_idx
+  on public.account_identities(account_id);
+
 create table public.devices (
   device_id uuid primary key,
-  account_id uuid not null references auth.users(id) on delete cascade,
+  account_id uuid not null references public.accounts(account_id) on delete cascade,
   identity_public_key bytea not null,
   created_at timestamptz not null default now(),
   revoked_at timestamptz
@@ -119,7 +139,7 @@ create index delivery_keys_terminal_cleanup_idx
   where status in (1, 2);
 ```
 
-**Not drop-in production SQL:** after protocol/role decisions, add explicit `GRANT`/`REVOKE`, RLS or a server-only queue API, media and prekey tables, cleanup policies, and unit/integration tests. A Supabase service-role key **bypasses ordinary RLS**; a privileged backend must enforce account/device authorization itself. Browser clients must not write these queue tables directly just because they know a device ID.
+**Not drop-in production SQL:** after protocol/role decisions, add explicit `GRANT`/`REVOKE`, scoped service accounts, optional RLS defense-in-depth, server-only queue API, media/prekey tables, cleanup policies and unit/integration tests. **The selected OIDC provider's tokens are validated by Whispr controllers; they do not directly authorize SQL.** A privileged DB connection must enforce account/device authorization in the application (RLS cannot be the only guard). Browser clients must not write these tables directly just because they know a device ID.
 
 The envelope size cap `65536` bytes is an **example** suitable for small encrypted message envelopes; its correct value depends on the chosen protocol and envelope metadata. Large attachments belong in object storage. Enforce independently checked media sizes.
 
@@ -175,7 +195,7 @@ Human read receipts, if enabled, are separate opt-in E2EE events, not a Boolean 
 
 ## 5. Device/prekey, profile and backup design
 
-- **Profiles:** split account-private fields (especially email) from opt-in public display data. Add only case-folded unique handle lookup indexes required for discovery.
+- **Accounts and identity:** local account UUIDs map to trusted self-hosted OIDC issuer/subject pairs; keep passwords and OAuth tokens in the IdP, never in Whispr tables. **Profiles:** split account-private fields (especially email) from opt-in public display data. Add only case-folded unique handle lookup indexes required for discovery.
 - **Devices:** one account can have multiple independently revocable devices; tie authorization to the authenticated device, not merely the account.
 - **Prekeys:** choose a reviewed protocol/library first. Signed bundles are versioned and verified by clients; one-time prekeys need transactional consume/reservation and bounded replenishment. Do not substitute a plaintext public-key directory for authenticated identity.
 - **Backup:** store only opt-in ciphertext plus version/KDF parameters and rollback-protection metadata. Recovery passphrase is distinct from the sign-in secret, and failed decryption never auto-overwrites the remote backup.
@@ -241,7 +261,7 @@ Reference: [PostgreSQL table partitioning](https://www.postgresql.org/docs/curre
 
 ## 9. Security/RLS contract
 
-Prefer **backend-owned mailbox APIs** with no direct `anon`/`authenticated` table grants for internal queue/ledger/event tables; do not assume Supabase `service_role` access is protected by RLS (it bypasses ordinary RLS). Backend must verify account-to-device binding, device not revoked, operation scope, origin envelope ownership and media capability on every operation.
+Require **backend-owned mailbox APIs** with no browser direct SQL/table grants for internal queue/ledger/event tables. Use least-privilege PostgreSQL roles and RLS where useful as defense-in-depth; **OIDC login is verified at the controller boundary, not delegated to raw SQL**. Backend must verify account-to-device binding, device revocation, scope, envelope ownership and media capability on every operation.
 
 Where direct-access tables/views are intentionally supported, enable RLS with default-deny and explicit SELECT/INSERT/UPDATE/DELETE policies, plus column grants that exclude private email/recovery metadata. Test with two accounts and three devices, including revoked and nonparticipant sessions. An authenticated sender must not choose another `sender_device_id`; an account-level JWT alone may not prove which physical device sent a message.
 
@@ -249,14 +269,14 @@ Transaction design must survive a duplicate enqueue racing with ACK, expiry raci
 
 ## 10. Migration plan — not authorized to execute
 
-1. **Observe**: export live schema and RLS from authorized Supabase instance; reconcile `server/supabase/migrations/` against `client/src/lib/supabase-chat.js`. Run `EXPLAIN (ANALYZE, BUFFERS)` for representative current queries in an isolated environment.
-2. **Additive schema**: introduce account/device directory, ledger, pending ciphertext table and outbox **alongside** legacy `messages`. Do not drop legacy tables or rotate/destroy keys.
+1. **Observe**: export live legacy schema/RLS from the authorized Supabase instance; reconcile `server/supabase/migrations/` against `client/src/lib/supabase-chat.js`. Separately test new Whispr-owned accounts/OIDC identity mapping and self-managed PostgreSQL schemas. Run `EXPLAIN (ANALYZE, BUFFERS)` for representative queries in an isolated environment.
+2. **Additive schema**: provision **self-managed PostgreSQL** with Whispr account/OIDC mapping, device directory, ledger, pending ciphertext and outbox while preserving Supabase legacy `messages` and encrypted key backups for read-only migration. Do not drop legacy tables or rotate/destroy keys.
 3. **Security gate**: verify grants/RLS/backend authorization, idempotent retries, expiry/ACK races, key bundle verification, account deletion semantics and protected local storage.
-4. **Dual-read migration**: clients paginate legacy encrypted history, decrypt locally, verify and persist protected local copies; capture import checkpoints and backup recovery evidence.
-5. **Cutover**: only new messages use the approved mailbox API; turn off legacy writes behind a controlled rollout flag. Keep old ciphertext available according to documented recovery obligations.
-6. **Retirement**: after successful migration and rollback/retention policy, delete legacy server history in bounded jobs. Monitor vacuum/bloat and verify deletion. Never silently drop a live data table.
+4. **Verified identity and dual-read migration**: link existing Supabase identities to self-hosted OIDC accounts with real proof (never email-only merging); recover password-derived legacy key backups **before** changing credentials; clients paginate old ciphertext, decrypt locally, verify and persist protected local copies.
+5. **Cutover**: only new messages use the self-hosted Whispr mailbox API; turn off Supabase legacy writes behind a controlled rollout flag. Keep old ciphertext and access available read-only according to documented recovery/rollback obligations.
+6. **Retirement**: after verified account and key recovery, successful client migration and rollback/retention policy, decommission Supabase connectors/keys and delete legacy history in authorized bounded jobs. Verify deletion and backups. Never silently drop a live data table.
 7. **Load gates**: compare p95/99 acceptance, per-device inbox fetch, ACK, storage/WAL and cleanup costs before introducing partitions, replicas, Redis or sharding.
 
 ## 11. Related docs
 
-[Database Design](./08_Database_Design.md) · [System Architecture](./04_System_Architecture.md) · [API Design](./09_API_Design.md) · [Scalability and Caching](./13_Scalability_and_Caching.md) · [Roadmap](./10_Development_Roadmap.md) · [Supabase Setup](./10_Supabase_Setup.md).
+[Database Design](./08_Database_Design.md) · [System Architecture](./04_System_Architecture.md) · [API Design](./09_API_Design.md) · [Scalability and Caching](./13_Scalability_and_Caching.md) · [Roadmap](./10_Development_Roadmap.md) · [Legacy Supabase Exit](./10_Supabase_Setup.md) · [Self-Hosted Backend](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
