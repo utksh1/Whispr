@@ -1,6 +1,6 @@
 # Whispr — Optimized Database Design and Access Patterns
 
-> **Status: PROPOSED / NOT IMPLEMENTED.** This is the physical data-model proposal for the **existing Whispr project**, building on [Database and Data Retention Design](./08_Database_Design.md). It is **not a production migration or drop-in SQL patch**. Review the **legacy Supabase** schema and migrations, then validate the new **self-hosted PostgreSQL**, chosen OIDC integration, tested E2EE protocol and device-identity rules before implementing.
+> **Status: PROPOSED / NOT IMPLEMENTED.** This is the physical data-model proposal for the **existing Whispr project**, building on [Database and Data Retention Design](./08_Database_Design.md). It is **not a production migration or drop-in SQL patch**. Review the **legacy Supabase** schema and migrations, then validate the new **private Whispr PostgreSQL (cloud-managed or self-operated)**, chosen OIDC integration, tested E2EE protocol and device-identity rules before implementing.
 
 ## 1. Optimization objective
 
@@ -20,7 +20,7 @@ Do **not** optimize merely by introducing more tables, replicas, caches, shardin
 | Storage | Authoritative for | Not authoritative for |
 | --- | --- | --- |
 | Protected IndexedDB / native encrypted SQLite | Per-device conversation history, encrypted ratchet/session state, local outbox, identity pins and local attachment index | Other users' history |
-| **Self-managed PostgreSQL** | Whispr account/OIDC identity mapping, device directory, signed public prekeys, **pending** envelopes, minimal idempotency/ACK, outbox, encrypted media metadata | Permanently delivered messages, auth passwords or plaintext |
+| **Whispr-controlled PostgreSQL (managed cloud DB is acceptable)** | Whispr account/OIDC identity mapping, device directory, signed public prekeys, **pending** envelopes, minimal idempotency/ACK, outbox, encrypted media metadata | Permanently delivered messages, auth passwords or plaintext |
 | **Private S3-compatible self-hosted object storage** | **Temporary encrypted** file chunks | File plaintext or decryption keys |
 | Redis (optional) | Presence, gateway mapping, safe public metadata caches and isolated abuse counters | Pending deliveries, durable ACK state, private keys |
 | CDN (optional) | Immutable public assets and **authorized ciphertext media** | Private API JSON, decrypted previews or recovery material |
@@ -267,10 +267,16 @@ Where direct-access tables/views are intentionally supported, enable RLS with de
 
 Transaction design must survive a duplicate enqueue racing with ACK, expiry racing with send, revoked device reconnect, and worker retry. No row-level authorization should depend on stale Redis cache.
 
+## Cloud-hosted PostgreSQL placement (TARGET)
+
+This physical schema remains **Whispr-owned** even when the PostgreSQL service is **managed by a cloud provider**. Hosting options include private AWS RDS PostgreSQL, GCP Cloud SQL or a secured self-operated cluster. Keep the IdP's credential store isolated from mailbox credentials, use private networking, least-privilege SQL roles, cloud secrets and tested backups/restores. Client-owned encrypted history and temporary pending mailbox semantics are unchanged. Cloud-managed storage does not authorize client-side SQL or eliminate the need for controller authorization.
+
+See [Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md). The DDL above is illustrative and has not been executed.
+
 ## 10. Migration plan — not authorized to execute
 
 1. **Observe**: export live legacy schema/RLS from the authorized Supabase instance; reconcile `server/supabase/migrations/` against `client/src/lib/supabase-chat.js`. Separately test new Whispr-owned accounts/OIDC identity mapping and self-managed PostgreSQL schemas. Run `EXPLAIN (ANALYZE, BUFFERS)` for representative queries in an isolated environment.
-2. **Additive schema**: provision **self-managed PostgreSQL** with Whispr account/OIDC mapping, device directory, ledger, pending ciphertext and outbox while preserving Supabase legacy `messages` and encrypted key backups for read-only migration. Do not drop legacy tables or rotate/destroy keys.
+2. **Additive schema**: provision **private PostgreSQL (managed cloud DB acceptable)** with Whispr account/OIDC mapping, device directory, ledger, pending ciphertext and outbox while preserving Supabase legacy `messages` and encrypted key backups for read-only migration. Do not drop legacy tables or rotate/destroy keys.
 3. **Security gate**: verify grants/RLS/backend authorization, idempotent retries, expiry/ACK races, key bundle verification, account deletion semantics and protected local storage.
 4. **Verified identity and dual-read migration**: link existing Supabase identities to self-hosted OIDC accounts with real proof (never email-only merging); recover password-derived legacy key backups **before** changing credentials; clients paginate old ciphertext, decrypt locally, verify and persist protected local copies.
 5. **Cutover**: only new messages use the self-hosted Whispr mailbox API; turn off Supabase legacy writes behind a controlled rollout flag. Keep old ciphertext and access available read-only according to documented recovery/rollback obligations.
