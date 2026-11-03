@@ -10,14 +10,14 @@
 | Authentication | Supabase Auth (`/app`) and separate Express demo JWT (`/demo`) | **Self-hosted standards-based OIDC IdP** (Keycloak is an evaluated candidate); Whispr Auth Controller verifies trusted issuer/audience/JWKS and maps IDs |
 | Backend | Browser-direct Supabase data/auth and separate Express/Socket.IO demo backend | **Whispr-owned Node.js + TypeScript modular monolith** with controllers/services/policies/repositories/workers; reuse hardened Express pieces |
 | Realtime | Supabase Realtime (`/app`); Socket.IO (`/demo`) | Whispr-owned Socket.IO/WebSocket gateway for ephemeral `mailbox:available` hints; durable HTTP mailbox fetch |
-| Primary database | Supabase Postgres / different Express adapters | **Self-managed PostgreSQL** for accounts/identity mappings, devices, public prekeys, pending ciphertext, dedup status and transactional notifications |
+| Primary database | Supabase Postgres / different Express adapters | **Private PostgreSQL, cloud-managed or self-operated**, with Whispr-owned schema for accounts/identity mappings, devices, prekeys, pending ciphertext, dedup and transactional notifications |
 | Client history | Server-stored ciphertext (`messages`), browser keyring in `localStorage` | Protected **local-first IndexedDB** records; OPFS encrypted media; optional native encrypted SQLite later |
-| Encrypted media | Full pipeline not implemented | **Private self-hosted S3-compatible object store** (evaluate MinIO or equivalent); scoped direct encrypted chunks; optional authenticated CDN |
+| Encrypted media | Full pipeline not implemented | **Private cloud object storage (such as S3) or self-operated compatible storage**; scoped encrypted chunks; optional authorized CDN |
 | Caching/presence | No proven production Redis coordination | **Optional Redis**, reconstructible public metadata and gateway/presence state; isolate rate-limit controls |
 | E2EE | P-256 ECDH + HKDF-SHA256 + AES-GCM, long-lived key model | Reviewed authenticated asynchronous/ratcheting protocol and per-device sessions with safety numbers |
 | Backup | Login-password-derived legacy encrypted private-key backup | Explicit independent recovery secret; versioned client-encrypted backup and tested restore |
 | Validation | Existing Node/Vitest suites, mostly prototype | OIDC/JWKS tests, backend authorization, database transactions, encrypted local DB, protocol vectors, media and migration E2E |
-| Ops/CI | No verified high-availability deployment | Docker Compose for test/dev; isolated backed-up self-hosted single-region deployment; CI, secrets management, restore drills, privacy-safe telemetry |
+| Ops/CI | No verified high-availability deployment | Docker Compose for test/dev; **cloud-hosted** containers with managed infrastructure options, backup/restore drills, least-privilege IAM and privacy-safe telemetry |
 
 ## Self-hosted authentication decision
 
@@ -25,11 +25,11 @@ Do **not** implement production password hashing, login recovery, MFA, Google OA
 
 ## Database and storage ownership
 
-Self-managed PostgreSQL holds **only operational metadata and pending ciphertext**, with narrow tables described in [Optimized Database Design](./14_Optimized_Database_Design.md). The client keeps history and ratchet state; Redis and Socket.IO are never authoritative for undelivered envelopes; object storage holds ciphertext file bytes, not keys/plaintext.
+Whispr-controlled PostgreSQL (preferably cloud-managed in production) holds **only operational metadata and pending ciphertext**, with narrow tables described in [Optimized Database Design](./14_Optimized_Database_Design.md). The client keeps history and ratchet state; Redis and Socket.IO are never authoritative for undelivered envelopes; object storage holds ciphertext file bytes, not keys/plaintext.
 
 ## Deployment principle
 
-Start with **one modular backend**, self-managed PostgreSQL, isolated OIDC provider and private S3-compatible object storage. Redis is optional. Use Docker Compose for isolated development and backed-up TLS-protected infrastructure for the initial production region. Do not deploy Kafka, Kubernetes, multi-region writers, partitioning or separate microservices without observed need.
+Start with **one modular backend in cloud containers**, private cloud-managed PostgreSQL, a separately operated OIDC provider and private object storage. Redis is optional. Use Docker Compose for isolated development and backed-up, TLS-protected **cloud infrastructure** for the initial production region. Do not deploy Kafka, Kubernetes, multi-region writers, partitioning or separate microservices without observed need.
 
 ## Scalability options (not installed)
 
@@ -43,6 +43,12 @@ Start with **one modular backend**, self-managed PostgreSQL, isolated OIDC provi
 | Kafka / distributed broker | Defer unless Postgres transactional outbox + gateway hints cannot meet demonstrated throughput |
 | Multi-region mailbox | Defer; eventual regional owners require fenced failover |
 | Monitoring | p95 acceptance/ACK, queue age, Redis/gateway failures and media transfer; no plaintext/keys/contact graph logs |
+
+## Cloud deployment reference (TARGET)
+
+Whispr can deploy its **own controllers and reviewed OIDC provider on a cloud compute platform** while using provider-managed PostgreSQL, private object storage, Redis, networking and observability. AWS ECS/Fargate + RDS PostgreSQL + S3 + Secrets Manager is one reference profile. Provider-neutral OIDC, PostgreSQL, container and object-storage contracts reduce lock-in; no provider has been selected or deployed yet.
+
+See [Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md) for topology, cost controls, IAM boundaries, WebSocket scaling and recovery gates. Cloud-managed infrastructure is compatible with **no Supabase target dependency**.
 
 ## Browser trust limitation
 
