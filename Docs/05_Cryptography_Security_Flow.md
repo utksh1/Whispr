@@ -1,85 +1,72 @@
-# 🔐 Whispr — Cryptography & Security Flow
+# Whispr — Cryptography and Key Lifecycle
 
-Whispr is built on the principle that the backend is a **hostile environment**. Message confidentiality and integrity are guaranteed mathematically between clients, rather than via server-side policy.
+> **Status:** Architecture target for the existing Whispr project; **not yet implemented**. This document distinguishes current source code from the desired protocol. All security claims depend on the client delivery and endpoint threat model below.
 
----
+## Current implementation (verified in source)
 
-## 🏗️ The E2EE Flow
+`client/src/lib/crypto.js` uses browser **P-256 ECDH**, **HKDF-SHA256**, and **AES-GCM** with per-message salt, random nonce and authenticated associated data containing sender/recipient public keys and version. The keyring exports PKCS#8 private keys and serializes them into `localStorage`. A remotely stored backup encrypts the serialized keyring with AES-GCM after **PBKDF2-SHA256 (150,000 iterations)** derived from the sign-in password supplied to Supabase Auth.
 
-The following diagram illustrates how a message moves from Sender A to Receiver B without the server being able to read it.
+Those are implementation facts, **not** proof of forward secrecy, verified correspondent identity or safe key isolation. The current message design uses long-lived ECDH identities and lacks Double Ratchet/session management. Decryption authentication verifies ciphertext and AAD under a key, **not** that the key belongs to the human the UI claims.
+
+## Target protocol decision
+
+Use a **reviewed, actively maintained implementation** of authenticated asynchronous session initiation and a **Double Ratchet-style** per-device protocol for one-to-one messages. Determine platform/library support, audit history, licensing, wire interoperability, state persistence guarantees and test vectors before choosing a specific library. Never invent a new E2EE protocol from cryptographic primitives.
+
+Required security properties:
+
+- Peer-identity binding with safety numbers/fingerprints, QR verification and conspicuous key-change warnings.
+- Forward secrecy through message-key evolution; bounded post-compromise recovery where the chosen ratchet supports it, subject to correct device-state handling.
+- Independent sessions per device, fresh nonces/keys as required by the selected protocol, replay detection and bounded out-of-order processing.
+- Authenticated versioned protocol envelopes and canonical associated-data encoding binding message type, session/device identifiers and routing context as appropriate.
+- Transaction-safe ratchet state + message/outbox persistence; restore after crashes without nonce reuse or state rollback.
+- Explicit revocation, device list changes, recovery and missing-key behavior.
+
+For prospective group messaging, evaluate **Messaging Layer Security (MLS; RFC 9420)** as a *separate* phase, not as a change hidden inside one-to-one implementation.
+
+## Target one-to-one flow
 
 ```mermaid
 sequenceDiagram
-    participant A as Alice (Sender)
-    participant S as Whispr Server
-    participant B as Bob (Receiver)
-
-    Note over A, B: Key Exchange
-    A->>S: Request Bob's Public Key (X25519)
-    S-->>A: Bob's Public Key
-    
-    Note over A: Local Encryption
-    A->>A: Generate Ephemeral Key & Nonce
-    A->>A: Encrypt Plaintext + Auth Tag (ChaCha20-Poly1305)
-    
-    Note over A, S: Secure Relay
-    A->>S: Send {conversationId, ciphertext, nonce}
-    S->>S: Store encrypted payload (Blind Relay)
-    
-    Note over S, B: Real-time Delivery
-    S->>B: Emit 'message:receive' {payload}
-    
-    Note over B: Local Decryption
-    B->>B: Verify Auth Tag & Nonce
-    B->>B: Decrypt using Private Key
-    B->>B: Final Plaintext Displayed
+  participant A as Alice's device
+  participant D as Untrusted key directory
+  participant Q as Encrypted mailbox
+  participant B as Bob's device
+  A->>D: Fetch device list + authenticated key bundles
+  D-->>A: Device bundles and verification data
+  A->>A: Verify identity/change policy; establish session
+  A->>A: Ratchet-encrypt; commit state + local outbox
+  A->>Q: Store versioned ciphertext envelope per device
+  Q-->>A: Accepted / expiry metadata
+  Q-->>B: Wake-up hint (optional)
+  B->>Q: Authenticated fetch
+  Q-->>B: Ciphertext envelope
+  B->>B: Authenticate, decrypt, dedupe, persist atomically
+  B->>Q: ACK only after durable save
+  Q->>Q: Delete acknowledged envelope
 ```
 
----
+The untrusted directory can substitute keys unless the client pins/validates identity bindings and exposes key changes. A successfully decrypting message is not automatically a verified sender.
 
-## 🛠️ Cryptographic Primitives
+## Private keys and local storage
 
-We choose modern, performance-oriented primitives that are appropriate for web clients and can be implemented through the **Web Crypto API** and carefully selected supporting libraries where necessary.
+- **Target:** keep active private cryptographic material under a key-management boundary, with non-extractable Web Crypto keys where compatible and safe persistence in IndexedDB/OPFS for encrypted records. Assess browser storage eviction, backups and support across browsers.
+- Non-extractability does **not** defend against all XSS: same-origin malicious JavaScript can call cryptographic operations. Enforce CSP, strict dependency control and careful rendering; consider signed native apps as a stronger future security target.
+- Export private key material only for **explicit encrypted backup or device transfer** with a user-controlled recovery secret, not the user's account login password.
+- Account authentication establishes API authorization; it must not be confused with verification of a messaging identity.
 
-### 1. Key Exchange (X25519)
-Used to establish a shared secret or distribute public keys for asynchronous messaging. It provides high security with small key sizes.
+## Backups
 
-### 2. Authenticated Encryption (AEAD)
-Whispr should use a modern AEAD construction for message confidentiality and integrity. The exact implementation choice must match the actual client platform capabilities and should be documented when finalized.
+A backup must be end-to-end encrypted **before upload**, authenticated and versioned. Use a separate high-entropy recovery key or independently chosen passphrase with a modern memory-hard KDF suitable for the client platform. Store only ciphertext, KDF parameters, salt, nonce, version and rollback-protection metadata server-side. A failed decrypt must **not** generate and auto-upload a replacement backup. Provide verification, recovery testing, export and explicit reset confirmations.
 
-### 3. Key Derivation (HKDF-SHA256)
-All symmetric keys used for actual encryption are derived using HKDF to ensure high entropy and isolation between different security contexts.
+## Encrypted media
 
-### 4. Integrity and Authenticity
-Digital signatures or equivalent authenticated message designs may be used to ensure that messages originated from the claimed sender and have not been modified or replayed.
+Generate independent random file key material client-side. Encrypt file chunks and a manifest with authenticated encryption, per-chunk unique nonce construction, authenticated ordering/index binding, final integrity verification and size/format caps. The E2EE chat envelope carries the wrapped key and opaque object reference; the object store never receives decryption material. Media previews are produced locally; never let the server derive thumbnails from plaintext.
 
----
+## Security boundaries and honest claims
 
-## 🛡️ Trust Assumptions
-- **The Server is Trusted for:** Availability, routing, and metadata management.
-- **The Server is NOT Trusted for:** Privacy, content integrity, or identity verification (unless using PGP-style out-of-band verification).
+- A **database-only** breach should expose ciphertext and limited metadata, assuming strong local key security.
+- A hostile **backend key directory** threatens identity and message integrity unless clients verify bindings.
+- A fully compromised **web hosting origin** can serve hostile JavaScript and steal plaintext or issue key operations. Do **not** claim a browser-only app guarantees secrecy against complete frontend/server compromise.
+- A compromised endpoint, malicious extensions, forgotten recovery secret, and copied recipient plaintext cannot be solved by transport E2EE alone.
 
----
-
-## 🔑 Private Key Lifecycle
-
-Whispr intentionally separates login from message decryption:
-- JWT login proves account access.
-- The private keyring proves message access.
-- Logout clears the JWT session but does not delete local private keys.
-- Key regeneration adds a new keypair to the keyring so older messages can still decrypt with older private keys.
-- Public key upload activates the new public key for future inbound messages.
-
-Encrypted backup flow:
-1. The client serializes the local keyring.
-2. The client derives a backup key from the user's secret using PBKDF2-SHA256.
-3. The client encrypts the serialized keyring with AES-GCM.
-4. The server stores only ciphertext backup material: `ciphertext`, `salt`, `iv`, and `version`.
-5. A fresh device can restore old-chat access only if it can decrypt that backup.
-
-If a private key for a historical message is missing, the client should show a missing-key state. That is different from integrity failure, which means ciphertext/authenticated metadata verification failed.
-
----
-
-> [!IMPORTANT]
-> This document describes the intended security direction. The exact message format, key rotation policy, replay protection strategy, and signature model should be documented alongside implementation once they are finalized.
+References: [Signal protocol specifications](https://signal.org/docs/), [MLS RFC 9420](https://www.rfc-editor.org/rfc/rfc9420), [Threat Model](./06_Threat_Model.md). No production cryptographic assurance is claimed until implementation, test vectors and external review.
