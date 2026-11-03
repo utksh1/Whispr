@@ -57,6 +57,24 @@ Caching key bundles for 30–120 seconds is a **candidate operational TTL**, nev
 
 See [Scalability and Caching](./13_Scalability_and_Caching.md).
 
+## Self-hosted control-plane and migration threats (TARGET)
+
+| Threat | Consequence | Mandatory mitigation |
+| --- | --- | --- |
+| DIY password/JWT/OAuth flow | Credential takeover, forged sessions | Choose a maintained self-hosted OIDC provider, validate JWT signature/issuer/audience/expiry/JWKS; no fallback signing key |
+| Unverified legacy Supabase-to-new account merge | Cross-user account or history takeover | Proof-based linking of old identity to new OIDC `(issuer,subject)`; **never email-only auto-link** |
+| OIDC token assumed to prove E2EE device identity | Malicious device enrollment | Paired-device approval or authenticated step-up, device key pinning, revoked-device checks |
+| Password-derived legacy private-key backup lost after auth cutover | Permanent loss of historical chat access | Explicit old-secret restore, independent recovery secret, fresh-device restore test before decommission |
+| Privileged controller bypasses RLS | Cross-account queue/media access | Private SQL access, least-privilege roles and enforce account/device policy in application services |
+| Self-hosted database or object-store compromise | Ciphertext and routing metadata disclosure | E2EE, scoped credentials, isolated networks, limited retention, encrypted operational backups |
+| Misconfigured self-hosted IdP or signing-key rotation | Session spoofing or outage | Trusted issuer/JWKS lifecycle, MFA/CSRF protections, patching and recovery drills |
+| Premature Supabase deletion or divergent dual-write | Message/key loss, split-brain accounts | Additive migration, read-only legacy rollback window, verified client-local history and backup recovery |
+| Hostile frontend JavaScript after self-hosting | Endpoint/plaintext compromise | CSP/supply-chain protections, signed native app evaluation; self-hosting alone does not resolve it |
+
+Server passwords, OAuth credentials and MFA secrets should remain inside the selected identity provider—not the messaging database. Web clients must never access PostgreSQL or internal S3 service credentials directly. The old Supabase RLS remains a **legacy audit concern**, not the target's only authorization layer.
+
+See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
 ## Out of scope for initial implementation
 
 Anonymity against global network observers, compromised end-user devices, guaranteed deletion after recipient download, anti-screen-capture promises, protection against a fully compromised browser JavaScript origin, and sophisticated traffic analysis defenses.
