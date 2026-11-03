@@ -40,9 +40,9 @@ flowchart TB
     REC["Recovery Controller: opaque E2EE backup"]
     WORK["Workers: transactional outbox / TTL / cleanup"]
   end
-  PG[("Self-managed PostgreSQL: account mapping, pending ciphertext, dedup, outbox")]
+  PG[("Private PostgreSQL: cloud-managed or self-operated, pending ciphertext")]
   CACHE[("Optional Redis: presence, safe public cache, routing")]
-  OBJ[("Private S3-compatible object storage: encrypted blobs")]
+  OBJ[("Private cloud object storage: ciphertext blobs")]
   subgraph R["Client device B: trusted endpoint"]
     IN["Fetch/dedupe inbox"]
     DEC["Verify peer + decrypt"]
@@ -61,9 +61,15 @@ flowchart TB
   MED -->|"Authorize object capabilities"| OBJ
 ```
 
-The diagram depicts **logical modules**, not independent microservices. Supabase is **not** part of the target runtime. Authentication uses a reviewed, self-hosted OIDC provider (Keycloak is an evaluated option), while Whispr controllers validate sessions and authorize device operations. PostgreSQL and object storage are self-operated. Reuse the current Express/Socket.IO code only after its auth/security issues are fixed.
+The diagram depicts **logical modules**, not independent microservices. Supabase is **not** part of the target runtime. Authentication uses a reviewed, self-hosted OIDC provider (Keycloak is an evaluated option), while Whispr controllers validate sessions and authorize device operations. PostgreSQL and object storage may be **cloud-managed** while their data contracts and access policies remain Whispr-owned. Reuse the current Express/Socket.IO code only after its auth/security issues are fixed.
 
 **No direct browser-to-PostgreSQL access in the target.** The app calls a versioned Whispr HTTP API and authenticated realtime gateway. Redis is non-authoritative; loss of wake-up notifications is repaired by mailbox fetch on reconnect. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md) for controller ownership and safe cutover.
+
+## Cloud deployment option (TARGET)
+
+The Whispr controller architecture can run on **cloud-hosted containers**, with privately networked **managed PostgreSQL**, private cloud object storage, cloud secrets/monitoring and optional managed Redis. A reviewed OIDC provider can also be deployed in isolated cloud containers. Application control, schema ownership, per-device authorization, ciphertext-only object rules and client E2EE do **not** depend on manually operating every database host or storage server.
+
+Start with one region and a modular monolith; use a stable HTTPS/WebSocket ingress. AWS ECS/Fargate, RDS and S3 form one illustrative profile, not an exclusive stack. Cloud hosting does not change the pending-only server mailbox or safe Supabase exit process. See [Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md).
 
 ## Responsibilities and trust boundaries
 
@@ -74,7 +80,7 @@ The diagram depicts **logical modules**, not independent microservices. Supabase
 | Delivery mailbox | Persist only pending per-device encrypted envelopes, deduplicate, expire, authenticate fetch/ACK | Preserve a permanent server-side conversation transcript |
 | Media service | Accept encrypted chunks, enforce quota, return scoped object capabilities, expire blobs | Obtain plaintext files or file encryption keys |
 | Realtime gateway | Send wake-up hints and trigger mailbox fetch | Be the sole delivery mechanism or be treated as a durable queue |
-| Self-managed PostgreSQL | Hold local account/OIDC mapping, devices, public key bundles, pending envelopes, dedup ledger, notification outbox | Contain IdP passwords, plaintext history or permanent delivered-message archives |
+| Private PostgreSQL (cloud-managed or self-operated) | Hold Whispr account/OIDC mapping, devices, public bundles, pending envelopes, dedup ledger and outbox | Contain IdP passwords, plaintext history or delivered archives |
 | Local DB | Persist messages, attachments, ratchet state and delivery cursors | Assume browser storage is immune to XSS or eviction |
 
 ## Text message lifecycle
