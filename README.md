@@ -34,7 +34,7 @@ flowchart LR
 
 The target also includes reviewed ratcheting one-to-one encryption, key verification, per-device identity, local-only search, encrypted media sharing, separate recovery secrets and safe migration of legacy chat history.
 
-This is a **modular monolith first** approach: retain the Next.js UI, Supabase Auth and PostgreSQL while replacing storage and delivery contracts. No Kubernetes, Kafka or broad rewrite is necessary to start.
+This is a **self-hosted modular monolith first** approach: retain Next.js and hardened Node/Express/Socket.IO components, but replace Supabase Auth, direct database APIs, Realtime and Storage with Whispr-owned controllers, self-hosted OIDC and private PostgreSQL/object storage. No Kubernetes, Kafka or broad rewrite is necessary to start.
 
 ## Scale and caching direction (target, NOT implemented)
 
@@ -54,6 +54,16 @@ The design explicitly avoids a permanent high-water timestamp cursor (concurrent
 
 See [Optimized Database Design](./Docs/14_Optimized_Database_Design.md). This is **documentation**, not a schema migration or running feature.
 
+## Self-hosted backend decision (TARGET / NOT IMPLEMENTED)
+
+**Supabase is a legacy dependency, not part of Whispr's future runtime.** The target client uses a reviewed self-hosted OIDC provider (Keycloak is a candidate) and Whispr-owned Auth/Device/Key/Mailbox/Realtime/Media/Recovery controllers. The backend runs a private self-managed PostgreSQL database and private S3-compatible encrypted object store, with optional Redis for ephemeral routing, presence and safe metadata. Device-local encrypted conversation history remains the source of truth.
+
+**Auth separation:** the identity provider holds passwords, MFA and OAuth credentials; Whispr maps verified OIDC issuer/subject to stable account IDs and separately verifies messaging devices. Never promote the current insecure demo JWT implementation to production.
+
+**Migration:** users must verify account linking, recover and re-encrypt old password-derived keyring backups, import legacy ciphertext locally and pass rollback/retention checks before Supabase is retired.
+
+[Self-Hosted Backend and Supabase Exit](./Docs/15_Self_Hosted_Backend_and_Supabase_Exit.md) documents the controller architecture and non-destructive transition.
+
 ## Setup for current code
 
 ### Web client
@@ -64,7 +74,7 @@ npm install
 npm run dev
 ```
 
-Create `client/.env.local` with the Supabase public URL/publishable key and any needed API URL. See [client README](./client/README.md) and [Supabase setup](./Docs/10_Supabase_Setup.md). **No `client/.env.example` is currently tracked.**
+**For current legacy code only**, create `client/.env.local` with the existing Supabase public URL/publishable key and any needed demo API URL. New self-hosted environment variables are not yet consumed by the client. See [client README](./client/README.md) and [legacy Supabase setup and exit](./Docs/10_Supabase_Setup.md). **No `client/.env.example` is currently tracked.**
 
 ### Demo API
 
