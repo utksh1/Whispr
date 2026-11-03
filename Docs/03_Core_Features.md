@@ -22,6 +22,18 @@
 | Account and privacy settings | Device/security settings, retention disclosure, safe errors, recoverability warnings |
 | Security hardening | Strong mandatory secrets, closed demo admin surface, RLS/tenant isolation, negative CI tests |
 
+### P0 — Scalability requirements for core delivery
+
+- Durable PostgreSQL acceptance with sender-visible retryable failure under overload; no `accepted` result before commit.
+- Device-scoped idempotent envelope IDs, keyset mailbox pagination, bounded TTL/expiry, and **transactional outbox** for non-durable WebSocket wake-up hints.
+- Multi-instance-ready stateless realtime gateway and reconnect fetch that survives Redis Pub/Sub loss.
+- Safe public metadata cache allowlist; no plaintext chat/key/backup/session-token values in Redis or a CDN.
+- Per-account/device rate limits, pending-byte caps, connection and media concurrency quotas; conservative behavior when the security counter store fails.
+- Recipient ACK after local durable save, replay/duplicate protection, bounded retries and no cross-device premature envelope deletion.
+- Baseline load tests for queue aging, database saturation and gateway reconnect storms with redacted operational telemetry.
+
+See [Scalability and Caching](./13_Scalability_and_Caching.md). Redis and CDN are **optional infrastructure**, not preconditions to ship the first local-first core.
+
 ## P1 — Product completeness
 
 Resumable video and voice-note attachments; local-only message search; message statuses (queued, accepted, delivered, optionally read); block/report controls; delete-for-me and best-effort remote delete requests; encrypted backup export/restore; multiple authorized devices with device-specific sessions and per-device delivery.
