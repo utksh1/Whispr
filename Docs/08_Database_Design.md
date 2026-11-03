@@ -1,152 +1,72 @@
-# Whispr — Database Design
+# Whispr — Database and Data Retention Design
 
-## Current Product Storage
+> **Status:** This is the future schema direction for the **existing Whispr deployment**. These target tables are **not** present as-is. Do not deploy as a replacement migration until explicit compatibility and rollback plans exist.
 
-The product app (`/app`) now uses Supabase Auth, Postgres, and Realtime.
+## Current persisted data
 
-Supabase project ref: `lptfbgohubujthjnerwm`
+- `/app` uses Supabase Auth, PostgreSQL and Realtime for profiles, historical public keys, encrypted keyring backup rows and **permanent server-side encrypted `messages`**.
+- `/demo` uses Express repository adapters; its PostgreSQL shape is separate and not automatically compatible with the Supabase migrations.
+- Current tracked SQL under `server/supabase/migrations/` and the `client/src/lib/supabase-chat.js` queries diverge (including some profile, key and message columns). There is no committed canonical `supabase/whispr_schema.sql` at the path older docs referenced.
 
-Current public tables:
-- `profiles`: user discovery, active public key, backup presence flag
-- `user_keys`: historical public keys by deterministic key id
-- `private_key_backups`: encrypted keyring backup material only
-- `messages`: ciphertext, nonce, salt, sender/receiver ids, key ids, timestamps
+**Before altering production data:** inventory actual DB schema, reconcile/apply migrations in a fresh test database, verify RLS and export/backup historical ciphertext.
 
-See `Docs/10_Supabase_Setup.md` and [supabase/whispr_schema.sql](/Users/Utkarsh/Desktop/Projects/Whispr/supabase/whispr_schema.sql) for the exact table definitions, indexes, RLS policies, and Realtime setup.
+## Target: server-owned operational state
 
-The SQL-style schema below remains the repository/server target model and maps directly to the Supabase tables.
+| Logical table | Representative columns | Purpose and retention |
+| --- | --- | --- |
+| `accounts` / Supabase `auth.users` | `id`, account state | Authentication and account lifetime |
+| `public_profiles` | `account_id`, opt-in handle, public display fields | Minimal discoverability; exclude email/private flags |
+| `devices` | `device_id`, `account_id`, identity key, state, timestamps | Registered devices and explicit revocation |
+| `identity_key_events` | `device_id`, signed binding, prior fingerprint, version | Key changes and verification audit |
+| `prekey_bundles` | `device_id`, signed prekey metadata, one-time prekey reference | Asynchronous session initiation; rotate/replenish |
+| `delivery_envelopes` | `envelope_id`, `recipient_device_id`, `sender_device_id`, ciphertext, protocol version, `expires_at`, `created_at` | **Pending only**, deletion on durable device ACK or expiry |
+| `delivery_acks` | envelope/device key, acknowledged timestamp | Idempotency; short bounded retention |
+| `media_objects` | opaque ID, owner, ciphertext size, expiry, lifecycle status | Encrypted object references only; TTL cleanup |
+| `encrypted_backups` | owner/device, backup version, ciphertext pointer, salt/KDF params, timestamp | **Opt-in**, opaque E2EE recovery; independent secret |
+| `rate_limit_state` | account/device/IP bucket, count, expiration | Abuse controls, minimum logging |
 
-## 1. Users Table
-```sql
-users (
-  id UUID PRIMARY KEY,
-  username VARCHAR UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  public_key TEXT,
-  active_public_key_id TEXT,
-  created_at TIMESTAMP NOT NULL
-)
+Explicit account/device authorization and participant/destination checks are necessary for **every** queue and media operation. Server-generated schema must never depend on recipient usernames being trustworthy identity proofs.
+
+## Target: endpoint-owned data
+
+Use IndexedDB for browser-side structured records; evaluate OPFS for large local ciphertext media. Evaluate encrypted SQLite for signed native clients.
+
+```text
+ClientLocalStore
+├── conversations         # local UI + participant mappings
+├── messages              # protected message content + timestamps
+├── delivery_outbox       # durable ciphertext envelopes and retries
+├── receipt_state         # per-recipient/device state
+├── crypto_session_state  # ratchet/prekey state, protected
+├── device_directory      # pinned identity fingerprints / warnings
+├── attachments           # local encrypted objects and manifests
+├── sync_checkpoints      # replay-safe mailbox cursor
+└── backup_metadata       # local backup status and recovery state
 ```
 
-`public_key` and `active_public_key_id` represent the currently active account key for new inbound messages. Historical keys stay in `user_keys`.
+A browser database is **not automatically encrypted at rest**. Define a separate local-at-rest encryption layer and protected key management, test storage eviction and report recovery limitations honestly. Ideally write crypto-state transitions, outbox/inbox records, and deduplication markers atomically.
 
-## 2. User Keys Table
-```sql
-user_keys (
-  id TEXT PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  public_key TEXT NOT NULL,
-  created_at TIMESTAMP NOT NULL,
-  revoked_at TIMESTAMP,
-  is_active BOOLEAN DEFAULT true
-)
-```
+## Delivery queue constraints
 
-`id` is a deterministic SHA-256 hash of the public key. Old public keys remain retrievable by id so historical messages can point to the key version used.
+- One envelope per destination device, or equivalent recipient-scoped capability, with strict per-device authorization.
+- Stable client-generated IDs and server uniqueness constraints for idempotent retries.
+- Expiry timestamp and garbage collection; a maximum TTL is a **configurable design decision**, not an implemented constant.
+- ACK means receiver **durably persisted** the envelope/message. Reconnect and duplicates must not rollback ratchet state.
+- Separate delivery receipt from human read receipt; read receipt is opt-in and E2EE where supported.
+- No permanent `messages` server table in the **target** steady state. Temporary encrypted queues and backup ciphertext are permitted by their explicit policies.
 
-## 3. Private Key Backups Table
-```sql
-private_key_backups (
-  user_id UUID PRIMARY KEY REFERENCES users(id),
-  ciphertext TEXT NOT NULL,
-  salt TEXT NOT NULL,
-  iv TEXT NOT NULL,
-  version TEXT NOT NULL,
-  updated_at TIMESTAMP NOT NULL
-)
-```
+## Encrypted media object rules
 
-This stores encrypted keyring backup material only. Plaintext private keys must never be stored.
+Store only ciphertext chunks and minimal opaque manifest metadata server-side. Require authenticated upload/download capability, quotas, max object size, an expiry worker, deletion state, anti-abuse controls and safe download responses. File type/name and decryption key should travel in the encrypted chat manifest, not exposed object metadata.
 
-## 4. Conversations Table
-```sql
-conversations (
-  id UUID PRIMARY KEY,
-  participant_key TEXT UNIQUE NOT NULL,
-  user_a_id UUID REFERENCES users(id),
-  user_b_id UUID REFERENCES users(id),
-  created_at TIMESTAMP NOT NULL,
-  updated_at TIMESTAMP NOT NULL,
-  last_message_at TIMESTAMP
-)
-```
+## Migration from existing Whispr storage
 
-## 5. Optional Chat Sessions Table
-```sql
-chat_sessions (
-  id UUID PRIMARY KEY,
-  conversation_id UUID REFERENCES conversations(id),
-  root_message_id UUID,
-  started_by_user_id UUID REFERENCES users(id),
-  status VARCHAR DEFAULT 'active',
-  created_at TIMESTAMP NOT NULL,
-  closed_at TIMESTAMP
-)
-```
+1. Freeze the current schema contract and inventory tables/RLS against running deployment.
+2. Add new schema **alongside** legacy tables; never drop current `messages` during initial rollout.
+3. Let authenticated clients paginate and decrypt old records on-device, verify integrity and write protected local copies.
+4. Verify record counts, message decryptability, local backup/recovery and multi-device policy.
+5. Switch **new** messages to the pending mailbox protocol behind a compatibility flag.
+6. After explicit user-facing migration/retention policy, stop legacy writes; delete old server archives only when recovery/rollback requirements are satisfied.
+7. Run RLS-negative tests before rollout. Do not expose user emails as generally readable public profile columns.
 
-Use this if Whispr needs a bounded "session inside a conversation" model.
-
-Recommended rule:
-- the first message in a session becomes the root anchor
-- `root_message_id` can be the stable reference used to group later messages
-- auth sessions should remain separate and must not reuse message ids
-
-## 6. Messages Table
-```sql
-messages (
-  id UUID PRIMARY KEY,
-  conversation_id UUID REFERENCES conversations(id),
-  session_id UUID REFERENCES chat_sessions(id),
-  sender_id UUID REFERENCES users(id),
-  sender_key_id TEXT REFERENCES user_keys(id),
-  receiver_key_id TEXT REFERENCES user_keys(id),
-  ciphertext TEXT NOT NULL,
-  nonce TEXT NOT NULL,
-  salt TEXT NOT NULL,
-  version TEXT NOT NULL,
-  tampered BOOLEAN DEFAULT false,
-  tampered_at TIMESTAMP,
-  created_at TIMESTAMP NOT NULL
-)
-```
-
-`sender_key_id` and `receiver_key_id` are required for old-chat readability after key rotation. The client uses those ids to select the right private key from its local or restored keyring.
-
-If we want a lighter session version first, `session_id` can stay nullable and we can treat `id` of the first message as the session anchor in application logic before adding a dedicated `chat_sessions` table.
-
-## 7. Optional Message Metadata Table
-```sql
-message_metadata (
-  id UUID PRIMARY KEY,
-  message_id UUID REFERENCES messages(id),
-  delivered_at TIMESTAMP,
-  read_at TIMESTAMP
-)
-```
-
-## Design Principle
-Only encrypted payloads and safe operational metadata should be stored. Plaintext messages must never be stored in the database.
-
-## Private Key Lifecycle Note
-Whispr should keep these key concepts separate:
-- JWT auth token: account/API access
-- local private keyring: message access
-- active public key: key used for future inbound messages
-- historical public keys: key ids referenced by old messages
-- encrypted backup: server-stored ciphertext that can restore the keyring on a new device
-
-Logout clears the auth token but should not delete the local private keyring. Key regeneration should add a new keypair instead of deleting old private keys.
-
-## Session Design Note
-Whispr should keep these identifiers separate:
-- user auth session: login state and JWT lifecycle
-- conversation id: stable two-user relationship
-- chat session id: optional grouped exchange inside one conversation
-- message id: immutable record identifier
-
-Using the first message id as a session anchor is reasonable.
-Using a message id as the actual auth session identifier is not recommended.
-
-## Implementation Note
-
-This schema is a target design, not a guarantee that every table already exists in the running codebase.
+See [API contracts](./09_API_Design.md) and [Supabase setup](./10_Supabase_Setup.md).
