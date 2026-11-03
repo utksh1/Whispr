@@ -120,6 +120,23 @@ Do not send plaintext previews over push or realtime events.
 
 Use strict tenant/device RLS or equivalent backend authorization; explicit prekey consumption and replay protections; TLS with real certificate verification; content-size quotas, auth-rate limits, account/device revocation, idempotency keys, safe optimistic concurrency and bounded retries. Errors must not leak user lookup data unnecessarily. The client must not mark cryptographic integrity as correspondent-identity verification.
 
+## 6. Horizontal scaling, caching and overload contract (TARGET / NOT IMPLEMENTED)
+
+**Delivery acceptance** occurs only after a durable PostgreSQL commit. A successful WebSocket or Redis Pub/Sub publish is *not* acceptance or delivery evidence. The server commits a transactional event-outbox entry with the pending envelope; worker publication may retry without duplicating user messages.
+
+- `GET /v1/me/devices/:deviceId/envelopes` uses opaque **keyset cursors**, bounded `limit`, tenant/device authorization and forward-safe pagination; no unbounded offset-based history scan.
+- `POST /v1/envelopes` uses stable per-device envelope/idempotency IDs, strict size quotas and a server-authoritative expiry. If persistence fails, the API must not return `accepted`.
+- `POST .../ack` is device-authenticated, idempotent and updates pending/receipt state transactionally; a sender may query recipient-specific statuses without learning unrelated account activity.
+- Realtime `mailbox:available` is a wake-up hint. After reconnect, clients must authenticate and **fetch pending mailbox envelopes even if no event arrives**.
+- Where access is throttled or capacity is exhausted, return appropriate `429`/`503` plus retry policy/`Retry-After`; clients use jitter, bounded exponential backoff and stable idempotency IDs.
+- Media upload APIs authorize direct transfer of **encrypted bytes**, chunk limits, resumability and short-lived capabilities. Media retrieval must not allow a cross-account cache-key or signed-URL authorization bypass.
+- Public directory API caches may serve only signed/versioned, non-private fields. Account/device authorization and key-change verification may not be bypassed on a Redis cache hit.
+- Cache-only realtime/presence failures must not cause loss of PostgreSQL pending mail; rate-limit subsystem failure requires conservative fallback/fail-closed behavior as defined by route risk.
+
+**Metrics proposals (not measured):** acceptance p95 under 250 ms, online device delivery p95 under 2 s, mailbox API 99.9% monthly availability. Measure queue depth/age, retries, ACK latency, gateway connections, Redis eviction and DB saturation without plaintext, secrets or raw social graphs.
+
+See [Scalability and Caching](./13_Scalability_and_Caching.md) for cache keys/TTLs and operational failure tests.
+
 ## 6. Compatibility and rollout
 
 - Keep legacy endpoints for existing demo and message migration during transition, behind isolation/feature flags where appropriate.
