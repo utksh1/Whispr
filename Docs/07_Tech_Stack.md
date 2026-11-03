@@ -1,47 +1,53 @@
 # Whispr — Tech Stack
 
-> **Status:** Existing project, updated architecture direction. The "target" column is planning, **not** a list of installed dependencies.
+> **Status:** The current repository still uses Supabase in `/app`. The **target architecture is fully self-hosted under Whispr's control**. This is a design change in the existing project, **not** a new "2.0" release; dependencies and services described as target are not installed/deployed yet.
 
-| Area | Current repository | Target direction |
+## Current implementation vs target
+
+| Concern | Current code (as-is) | Target architecture (NOT IMPLEMENTED) |
 | --- | --- | --- |
-| Product UI | Next.js App Router, React, TypeScript/JavaScript, Tailwind CSS | Retain UI stack; extract messaging/crypto/local persistence packages |
-| User authentication | Supabase Auth for `/app`; separate Express JWT in `/demo` | Keep Supabase Auth for product; keep demo auth separate and isolated |
-| Backend | Browser-direct Supabase access in product; Express/Socket.IO demo | Modular Node backend for delivery/media/key-directory logic, with well-tested Supabase integration |
-| Realtime | Supabase Realtime (`/app`), Socket.IO (`/demo`) | Realtime as mailbox wake-up hint; HTTP/API as durable source of pending messages |
-| Relational data | PostgreSQL/Supabase tables; separate Express repository adapters | PostgreSQL for identity metadata, device/prekey directory, **pending** envelopes and authorization |
-| Chat history | Server-side ciphertext `messages` | Protected device-local message database; IndexedDB candidate for browser |
-| Client media | No full encrypted attachment pipeline | OPFS/local media persistence; client-encrypted chunks in private Supabase Storage or S3-compatible object storage |
-| Cryptography | Web Crypto P-256 ECDH + HKDF-SHA256 + AES-GCM | Reviewed authenticated ratcheting library, per-device sessions and key verification; evaluate support before choosing |
-| Key storage | PKCS#8 exports serialized in browser `localStorage` | Key manager and encrypted local storage with explicitly assessed browser limitations |
-| Backup | PBKDF2/AES-GCM using login password | Independent user-controlled recovery secret; memory-hard KDF where practical; versioned AEAD backup |
-| Validation and tests | Express Zod, Node test runner, client tests | Contract schemas, integration/RLS tests, protocol vectors, browser E2E and failure injection |
-| CI and operations | Current repository tooling; no verified full secure-message CI gate | GitHub Actions for security/integration gates; logs without plaintext, metrics without unnecessary metadata |
+| Product web UI | Next.js / React, Tailwind; JS/TS | Keep Next.js/React; separate E2EE client, authenticated API, local DB and media modules |
+| Authentication | Supabase Auth (`/app`) and separate Express demo JWT (`/demo`) | **Self-hosted standards-based OIDC IdP** (Keycloak is an evaluated candidate); Whispr Auth Controller verifies trusted issuer/audience/JWKS and maps IDs |
+| Backend | Browser-direct Supabase data/auth and separate Express/Socket.IO demo backend | **Whispr-owned Node.js + TypeScript modular monolith** with controllers/services/policies/repositories/workers; reuse hardened Express pieces |
+| Realtime | Supabase Realtime (`/app`); Socket.IO (`/demo`) | Whispr-owned Socket.IO/WebSocket gateway for ephemeral `mailbox:available` hints; durable HTTP mailbox fetch |
+| Primary database | Supabase Postgres / different Express adapters | **Self-managed PostgreSQL** for accounts/identity mappings, devices, public prekeys, pending ciphertext, dedup status and transactional notifications |
+| Client history | Server-stored ciphertext (`messages`), browser keyring in `localStorage` | Protected **local-first IndexedDB** records; OPFS encrypted media; optional native encrypted SQLite later |
+| Encrypted media | Full pipeline not implemented | **Private self-hosted S3-compatible object store** (evaluate MinIO or equivalent); scoped direct encrypted chunks; optional authenticated CDN |
+| Caching/presence | No proven production Redis coordination | **Optional Redis**, reconstructible public metadata and gateway/presence state; isolate rate-limit controls |
+| E2EE | P-256 ECDH + HKDF-SHA256 + AES-GCM, long-lived key model | Reviewed authenticated asynchronous/ratcheting protocol and per-device sessions with safety numbers |
+| Backup | Login-password-derived legacy encrypted private-key backup | Explicit independent recovery secret; versioned client-encrypted backup and tested restore |
+| Validation | Existing Node/Vitest suites, mostly prototype | OIDC/JWKS tests, backend authorization, database transactions, encrypted local DB, protocol vectors, media and migration E2E |
+| Ops/CI | No verified high-availability deployment | Docker Compose for test/dev; isolated backed-up self-hosted single-region deployment; CI, secrets management, restore drills, privacy-safe telemetry |
+
+## Self-hosted authentication decision
+
+Do **not** implement production password hashing, login recovery, MFA, Google OAuth or token issuance from scratch. Select and maintain a reviewed self-hosted OIDC provider. An OIDC identity is bound to a stable Whispr `accounts.account_id` through a verified `(issuer,subject)` mapping; never silently merge users by email and never assume account auth is device identity verification. Existing `/demo` weak JWT fallback is unacceptable for the production path.
+
+## Database and storage ownership
+
+Self-managed PostgreSQL holds **only operational metadata and pending ciphertext**, with narrow tables described in [Optimized Database Design](./14_Optimized_Database_Design.md). The client keeps history and ratchet state; Redis and Socket.IO are never authoritative for undelivered envelopes; object storage holds ciphertext file bytes, not keys/plaintext.
 
 ## Deployment principle
 
-Begin with **one backend modular monolith**, PostgreSQL and private encrypted-object storage. Do not introduce Kafka, Redis, Kubernetes, Prisma, libsodium, MLS libraries or multiple independent services simply because they are listed as possible future technologies. Select each only after validating a concrete requirement.
+Start with **one modular backend**, self-managed PostgreSQL, isolated OIDC provider and private S3-compatible object storage. Redis is optional. Use Docker Compose for isolated development and backed-up TLS-protected infrastructure for the initial production region. Do not deploy Kafka, Kubernetes, multi-region writers, partitioning or separate microservices without observed need.
 
-## Optional cache and high-scale components (TARGET / NOT INSTALLED)
+## Scalability options (not installed)
 
-| Component | Recommended starting position | When to introduce / split |
-| --- | --- | --- |
-| Redis | **Optional** ephemeral presence, stateless gateway routing, allowlisted public metadata caching | When gateway replicas, rate limits or measured cache savings require it; isolate rate-limit state from eviction |
-| PostgreSQL indexes / expiry worker | **Required** for durable pending mailbox | Add keyset indexes, bounded cleanup jobs and transactionally enqueued wake-up events at mailbox implementation |
-| PostgreSQL table partitioning | **Deferred** | Only after real queue volume and retention metrics show benefit |
-| CDN | Static immutable assets now; encrypted-media CDN **optional** | When media bandwidth/latency justify it, with scoped auth and cache-key tests |
-| Object storage | Private encrypted media bytes only | Introduce with encrypted attachment feature; direct scoped uploads rather than API byte proxying |
-| Message broker / Kafka | **Not selected** | Consider only if outbox workers + Postgres mailbox and Redis hints cannot satisfy measured reliability/throughput |
-| Multi-region home mailboxes | **Deferred** | Require regional latency evidence, authoritative home-writer routing and fenced failover |
-| Tracing / metrics | Privacy-safe operational metrics | Define acceptance/ACK/expiry and gateway/DB overload metrics before initial production rollout |
+| Component | Timing / boundaries |
+| --- | --- |
+| Redis | Add for multi-replica Socket.IO presence/gateway routing, safe public cache and isolated rate-limit state; fail conservatively when security controls are unavailable |
+| WebSocket replicas | Stateless and independently scalable; every reconnect performs authoritative mailbox fetch |
+| PostgreSQL indexes/expiry | Required at mailbox implementation; keyset pagination, dedup ledger, transactional notification outbox and bounded GC |
+| PostgreSQL partitioning | Defer until measured queue growth/index/retention pressure |
+| Private CDN | Optional for authenticated encrypted media with correct cache key/capability handling |
+| Kafka / distributed broker | Defer unless Postgres transactional outbox + gateway hints cannot meet demonstrated throughput |
+| Multi-region mailbox | Defer; eventual regional owners require fenced failover |
+| Monitoring | p95 acceptance/ACK, queue age, Redis/gateway failures and media transfer; no plaintext/keys/contact graph logs |
 
-Do not cache secrets or plaintext in Redis/CDNs; a cache hit must never bypass authentication, device authorization or peer identity verification. Redis Pub/Sub notifications are non-durable and cannot replace PostgreSQL mailboxes.
+## Browser trust limitation
 
-The exact cache hierarchy, candidate TTLs, failure behavior and proposed SLOs live in [Scalability and Caching](./13_Scalability_and_Caching.md).
+A web client served malicious JavaScript can lose plaintext confidentiality, even when servers are self-hosted. Web Crypto non-extractable keys alone cannot defeat same-origin malicious script. A signed desktop/mobile app is a potential future hardening path.
 
-## Browser vs native trust
+## References
 
-A browser-based local database and Web Crypto keys improve local-first behavior, **not** immunity from XSS, malicious extensions or an attacker controlling delivered JavaScript. Consider a signed desktop/mobile client as a future hardening path after the web product architecture works.
-
-## Related decisions
-
-[System Architecture](./04_System_Architecture.md) · [Cryptography](./05_Cryptography_Security_Flow.md) · [Database](./08_Database_Design.md) · [Roadmap](./10_Development_Roadmap.md).
+[Self-Hosted Backend / Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md) · [System Architecture](./04_System_Architecture.md) · [Cryptography](./05_Cryptography_Security_Flow.md) · [Database](./08_Database_Design.md) · [Scalability](./13_Scalability_and_Caching.md).
