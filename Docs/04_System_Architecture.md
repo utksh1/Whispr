@@ -71,6 +71,14 @@ The Whispr controller architecture can run on **cloud-hosted containers**, with 
 
 Start with one region and a modular monolith; use a stable HTTPS/WebSocket ingress. AWS ECS/Fargate, RDS and S3 form one illustrative profile, not an exclusive stack. Cloud hosting does not change the pending-only server mailbox or safe Supabase exit process. See [Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md).
 
+## Preferred deployable topology — Vercel, Render, optional R2 (TARGET)
+
+**Vercel** hosts the existing Next.js `client/` and static assets; end-to-end encryption and persistent history execute in each client device. **Render** hosts Whispr's authenticated Node.js controllers, Socket.IO gateway and background workers, alongside a separately secured reviewed OIDC provider and **paid Render PostgreSQL**. Render Key Value is optional for ephemeral presence and multi-instance routing.
+
+For **text-only messaging**, no cloud media object store is necessary. The **media feature later opts in to private Cloudflare R2**, using server-issued short-lived scoped S3-compatible transfer URLs and direct **client-encrypted** PUT/GET. AWS S3 is an alternative, not a required part of the platform. Render filesystem must not be the authoritative shared attachment store. Realtime wake-up hints do not replace durable pending mailboxes.
+
+This is a **hosting choice, not a change in the crypto or data-trust model**. Deployment and credential configuration are not implemented. Details: [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md).
+
 ## Responsibilities and trust boundaries
 
 | Component | Must do | Must not do |
