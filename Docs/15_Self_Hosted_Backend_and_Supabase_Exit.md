@@ -93,7 +93,7 @@ The existing Express `/demo` self-issued JWT flow contains a predictable signing
 
 **Sync detail:** `created_at` keyset cursor is for **one paginated sweep**, not a permanent commit-order cursor. Concurrent older timestamp writes may commit later; rescan pending mailboxes on reconnect and periodically, deduplicating locally. Media bytes live in private object storage.
 
-See [Optimized Database Design](./14_Optimized_Database_Design.md) for specific indices, schema examples, RLS/ownership pitfalls and migrations. **Its existing Supabase-specific sample references must be interpreted through this new local-account mapping; do not execute that SQL without adapting and validating it.**
+See [Optimized Database Design](./14_Optimized_Database_Design.md) for specific indices, schema examples, RLS/ownership pitfalls and migrations. **Its illustrative SQL now uses Whispr-owned accounts and OIDC identity mappings. It remains unexecuted design SQL and requires a reviewed, tested migration before deployment.**
 
 ## 6. Source-code direction and migration surface
 
