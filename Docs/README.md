@@ -31,6 +31,7 @@ At present, `/app` is a browser-direct Supabase encrypted-chat prototype with re
 | [14 — Optimized Database Design](./14_Optimized_Database_Design.md) | Self-managed PostgreSQL schema, identity mappings, mailbox, indexes and migration constraints |
 | [15 — Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md) | Whispr controllers, OIDC, private infrastructure and staged Supabase exit |
 | [16 — Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md) | Cloud-managed PostgreSQL and object storage, container hosting, IAM, resiliency, costs and provider-neutral choices |
+| [17 — Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md) | Initial deployment preference; text-only mode without object storage; encrypted attachment upload, security and costs |
 
 ## Scalability and caching reference
 
@@ -51,6 +52,12 @@ The current `/app` still uses Supabase; the **target runtime removes Supabase Au
 Cloud hosting **does not undo the decision to own Whispr's application and remove Supabase**. The backend/Socket.IO controllers and a reviewed OIDC provider can run in cloud containers, with cloud-managed PostgreSQL, private cloud object storage and optional managed Redis. Whispr retains schema, keys/authorization rules, ciphertext-only retention and client E2EE design. **No cloud resources have been provisioned.**
 
 [**16 — Cloud Hosting and Deployment**](./16_Cloud_Hosting_and_Deployment.md) documents the reference stack, vendor-neutral alternatives, security, WebSocket behavior, backups and cost monitoring.
+
+## Initial deployment profile: Vercel + Render; media optional
+
+The chosen **initial target hosting profile** is **Vercel for Next.js `client/`** and **Render for Whispr-controlled API/Socket.IO, reviewed OIDC and paid PostgreSQL**. **Cloudflare R2 is preferred only once encrypted media sharing is implemented**. No AWS S3 account, R2 bucket or other blob store is necessary for the **text-only MVP**. Render Key Value/Redis remains optional and is never the durable mailbox.
+
+[**17 — Vercel + Render + Optional Cloudflare R2**](./17_Render_Vercel_R2_Deployment.md) is the specific configuration, staged rollout, security, provider limits and cost guide. The [general cloud design](./16_Cloud_Hosting_and_Deployment.md) remains a portability/alternative-provider reference.
 
 ## Core decisions
 
