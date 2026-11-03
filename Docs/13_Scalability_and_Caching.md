@@ -177,6 +177,14 @@ Gateways send only lightweight wake-up hints. Clients reconnect with exponential
 
 Protect backend resources with limits on outstanding envelopes, bytes per sender/device, number of devices, simultaneous media uploads, unread queue age, request size, database connections and worker concurrency. On overload, respond with explicit retryable `429/503` and `Retry-After` rather than falsely acknowledging durability.
 
+## Vercel + Render operational scale profile (TARGET)
+
+Use **Vercel** for the Next.js frontend, **Render** for the Whispr API and Socket.IO gateway (one always-on web service initially), and **paid Render PostgreSQL** for pending ciphertext and delivery receipts. Socket.IO must recover from Render restarts/redeploys using mailbox fetch; avoid assuming a single always-on connection. **Render Key Value (Redis-compatible / Valkey)** is optional and never contains the authoritative mailbox or encryption secrets.
+
+**No object store for a text-only MVP.** Introduce **Cloudflare R2** only for encrypted attachment bytes, in a *private* bucket with short-lived signed R2 S3 API URLs. Enforce application authorization on every capability request and exact CORS/headers for Vercel browser origins. Do not expose a public R2 bucket or use Render persistent disks as horizontally scalable shared media storage. Evaluate R2 Standard storage, requests and lifecycle costs separately from Render/Postgres baseline.
+
+Provider guide and failure matrix: [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md).
+
 ## 7. Independent media delivery and CDN
 
 Media API issues scoped upload and download capabilities after authorization, per-account quotas and object/size constraints. Client encrypts **before upload** and uses authenticated chunking with unique nonce discipline. Chunk integrity, ordering and final manifest verification are performed client-side. Transfer retry must not reuse nonce/key pairs unsafely.
