@@ -8,13 +8,14 @@
 - `/demo` uses Express repository adapters; its PostgreSQL shape is separate and not automatically compatible with the Supabase migrations.
 - Current tracked SQL under `server/supabase/migrations/` and the `client/src/lib/supabase-chat.js` queries diverge (including some profile, key and message columns). There is no committed canonical `supabase/whispr_schema.sql` at the path older docs referenced.
 
-**Before altering production data:** inventory actual DB schema, reconcile/apply migrations in a fresh test database, verify RLS and export/backup historical ciphertext.
+**Before altering production data:** inventory the **legacy Supabase** DB schema and export/backup ciphertext; verify old key recovery and reconcile migrations in an isolated test database. The **target self-managed PostgreSQL** has a separate, versioned schema with local account IDs mapped to verified OIDC subjects. Never execute a legacy Supabase schema as the target's production schema.
 
 ## Target: server-owned operational state
 
 | Logical table | Representative columns | Purpose and retention |
 | --- | --- | --- |
-| `accounts` / Supabase `auth.users` | `id`, account state | Authentication and account lifetime |
+| `accounts` | `account_id` UUID, state, timestamps | **Whispr-owned account identity**, not a password database |
+| `account_identities` | `account_id`, trusted OIDC `issuer`, `subject`, linked time | Verified mapping from self-hosted identity provider, unique `(issuer,subject)` |
 | `public_profiles` | `account_id`, opt-in handle, public display fields | Minimal discoverability; exclude email/private flags |
 | `devices` | `device_id`, `account_id`, identity key, state, timestamps | Registered devices and explicit revocation |
 | `identity_key_events` | `device_id`, signed binding, prior fingerprint, version | Key changes and verification audit |
@@ -25,7 +26,7 @@
 | `media_objects` | opaque ID, owner, ciphertext size, expiry, lifecycle status | Encrypted object references only; TTL cleanup |
 | `encrypted_backups` | owner/device, backup version, ciphertext pointer, salt/KDF params, timestamp | **Opt-in**, opaque E2EE recovery; independent secret |
 
-Explicit account/device authorization and participant/destination checks are necessary for **every** queue and media operation. Server-generated schema must never depend on recipient usernames being trustworthy identity proofs.
+The target is **Whispr-owned PostgreSQL accessed through Whispr backend controllers**. Login is handled by a self-hosted OIDC provider; Whispr's DB never stores IdP password hashes/OAuth secrets. Explicit account/device authorization and participant/destination checks are necessary for **every** queue and media operation. Server-generated schema must never depend on recipient usernames being trustworthy identity proofs. Use least-privilege DB roles; RLS is optional defense-in-depth, not a replacement for controller authorization.
 
 ## Target: endpoint-owned data
 
@@ -79,14 +80,20 @@ Media ciphertext remains in private object storage, not Redis. CDN caching is op
 
 See [Optimized Database Design](./14_Optimized_Database_Design.md) for an illustrative physical schema, dedup/ACK races, index choices, and per-sweep cursor semantics. See [Scalability and Caching](./13_Scalability_and_Caching.md) for retention, failure behavior and throughput assumptions.
 
+## Self-hosted schema ownership
+
+The target schema is designed independently from Supabase's `auth.users`, PostgREST and browser RLS access. Use stable `accounts.account_id` UUIDs, verified `(issuer,subject)` in `account_identities`, and foreign keys from devices and other metadata to local account IDs. Store no plaintext messages, IdP password hashes, OAuth refresh tokens or private encryption keys in this database. `server/supabase/migrations/` is **legacy evidence** to preserve until the source data is retired; new DDL belongs in versioned `server/migrations/` after review and test.
+
+See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md), [Optimized Database Design](./14_Optimized_Database_Design.md) and [Legacy Supabase Exit](./10_Supabase_Setup.md).
+
 ## Migration from existing Whispr storage
 
-1. Freeze the current schema contract and inventory tables/RLS against running deployment.
-2. Add new schema **alongside** legacy tables; never drop current `messages` during initial rollout.
-3. Let authenticated clients paginate and decrypt old records on-device, verify integrity and write protected local copies.
+1. Freeze the current **legacy Supabase** contract; inventory and export the actual tables/RLS and encrypted backups from the authorized deployment.
+2. Provision a **separate self-managed PostgreSQL** schema with stable local accounts/verified OIDC mappings, device/prekey directory, delivery ledger, pending ciphertext and transactional outbox; do not drop legacy `messages`.
+3. Verify account linking from Supabase Auth to the new self-hosted OIDC provider (never email-only), and restore old password-derived encrypted key backups **before** changing login credentials. Clients then decrypt/persist legacy history locally.
 4. Verify record counts, message decryptability, local backup/recovery and multi-device policy.
-5. Switch **new** messages to the pending mailbox protocol behind a compatibility flag.
-6. After explicit user-facing migration/retention policy, stop legacy writes; delete old server archives only when recovery/rollback requirements are satisfied.
+5. Switch **new** messages to the Whispr-controlled pending mailbox protocol behind a feature flag; new clients call backend controllers, not Supabase tables.
+6. After explicit user-facing migration/retention and tested rollback, stop legacy writes; decommission Supabase connectors/keys and delete old archives only after verified recovery and authorized retention requirements.
 7. Run RLS-negative tests before rollout. Do not expose user emails as generally readable public profile columns.
 
-See [API contracts](./09_API_Design.md) and [Supabase setup](./10_Supabase_Setup.md).
+See [API contracts](./09_API_Design.md), [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md) and [Legacy Supabase Setup](./10_Supabase_Setup.md).
