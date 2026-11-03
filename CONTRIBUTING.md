@@ -48,6 +48,16 @@ curl http://localhost:4000/health
 6. **Safe migration:** do not drop existing encrypted history; verify client import and recovery first.
 7. **Data minimization:** least-privilege RLS, explicit TTL/retention, strict authorization on every mailbox/media operation.
 
+## Self-hosted Whispr contribution rules
+
+Whispr's current `/app` is browser-direct Supabase and `/demo` has separate Express JWT sessions. **Target implementation must remove Supabase as a runtime dependency after verified migration**, not build a parallel "2.0" product. Use Whispr-owned controllers/services/policies/repositories, private PostgreSQL, an evaluated reviewed self-hosted OIDC provider, Socket.IO and private S3-compatible encrypted object storage. Redis remains optional.
+
+Do **not** implement production password/OAuth/MFA/session issuance from scratch or reuse the predictable demo JWT fallback. Map verified OIDC `(issuer,subject)` to stable Whispr account UUIDs; email equality is insufficient to link legacy users. Device enrollment requires independent proof; the client remains responsible for E2EE identity verification.
+
+Keep `server/supabase/migrations/` as legacy evidence and write approved target self-hosted migrations under `server/migrations/`. Auth migration PRs require an identity-linking test matrix, recovery of password-derived legacy key backups, user-controlled rekey, validated local-history import, database backup/restore and rollback/decommission gates. No external service or data deletion is implied by a documentation change.
+
+Architecture reference: [Self-Hosted Backend and Supabase Exit](./Docs/15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
 ## Cache and scaling design reviews
 
 Any PR introducing Redis, shared edge caching, realtime fanout, partitioned mailbox storage or media transfer must document: authoritative owner of each record, cache allowlist and TTL, invalidation/revocation safety, per-tenant authorization, data retention, idempotency and ACK semantics, retry/backpressure behavior, and a concrete fault-injection test.
