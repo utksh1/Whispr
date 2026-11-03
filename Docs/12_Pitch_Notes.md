@@ -14,6 +14,12 @@ Transport encryption does not by itself prevent server operators or attackers fr
 
 Whispr includes a Next.js/Supabase product route and a separate Express/Socket.IO two-user demo. Encryption uses browser P-256 ECDH, HKDF-SHA256 and AES-GCM. Current server-side ciphertext history, browser key export, login-password-based encrypted backup and missing full key verification mean it **cannot yet promise production-grade secure messaging**.
 
+## Target platform ownership (NOT SHIPPED)
+
+Whispr's planned infrastructure is **self-hosted**: Whispr-owned controllers, a maintained standards-based OIDC identity provider, private PostgreSQL, Socket.IO and private S3-compatible ciphertext storage, with optional Redis. The current `/app` still uses Supabase and the `/demo` backend has a different auth path. Self-hosting adds control **and operational obligations**, not unconditional protection from malicious JavaScript or compromised endpoints.
+
+The migration has specific identity-verification, private-key-backup recovery, local history import and decommission gates. Refer to [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
 ## Target differentiation (NOT shipped)
 
 - Device-owned encrypted chat history and local-only search.
