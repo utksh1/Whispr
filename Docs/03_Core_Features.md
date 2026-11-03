@@ -46,6 +46,15 @@ See [Scalability and Caching](./13_Scalability_and_Caching.md). Redis and CDN ar
 
 These are **planned acceptance requirements**, not existing deployed features. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
 
+### Deployment-feature separation (TARGET)
+
+- P0 initial text-only cloud deployment: **Vercel Next.js frontend**, **Render API + Socket.IO + OIDC**, and **paid Render PostgreSQL** for device directory, pending encrypted envelopes, dedup and transactional outbox. No AWS S3/R2 bucket is required.
+- P1 encrypted attachments: add private **Cloudflare R2** behind a storage adapter, browser-side encryption/chunking, scoped temporary signed uploads/downloads, exact CORS, retention/cleanup and malicious-file testing. The text-only app works when R2 is not configured.
+- Optional scale: Render Key Value (Redis-compatible) for multiple gateway nodes, presence and targeted cache; never a durable mailbox.
+- Do not treat sleeping free Render web services or 30-day free Postgres as durable real-user hosting.
+
+See [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md). All these changes are **planned**, not running.
+
 ## P1 — Product completeness
 
 Resumable video and voice-note attachments; local-only message search; message statuses (queued, accepted, delivered, optionally read); block/report controls; delete-for-me and best-effort remote delete requests; encrypted backup export/restore; multiple authorized devices with device-specific sessions and per-device delivery.
