@@ -86,6 +86,14 @@ At-least-once delivery, duplicate detection, reconnect cursors and bounded reten
 
 Client validates the file, generates independent attachment encryption material, encrypts metadata and content/chunks locally, uploads only ciphertext, and sends the capability plus decryption material inside an E2EE message. The recipient downloads, authenticates each chunk/manifest and saves the decrypted content to protected local storage. Expiry must not occur before the intended recipient devices have a retrieval opportunity; time-bounded cleanup is mandatory. Use strict quota, type, size and safe-rendering rules.
 
+## Optimized physical database boundaries (TARGET)
+
+The backend is **not** a permanent conversations/messages repository in steady state. For reliable asynchronous delivery, keep only small device/profile/key-bundle metadata, a `delivery_keys` ledger for bounded retry idempotency, a `pending_envelopes` ciphertext-only hot table, and a `mailbox_events` transactional notification outbox. ACK/expiry deletes payload while preserving an expiring metadata tombstone; media bytes live in object storage, not PostgreSQL.
+
+The client owns ordered chat history, protocol state, dedup keys and encrypted media references. Recipient-specific keyset mailbox cursors are for paginating pending rows, **not permanent commit-order checkpoints**; refresh scans on reconnect and periodically. Avoid optimizing by prematurely adding Redis as a durable queue or partitioning before measuring churn.
+
+Physical table/index examples, security boundaries, and safe migration rules: [Optimized Database Design](./14_Optimized_Database_Design.md).
+
 ## Multi-device and backup policy
 
 - Each device has its own registered device identifier and cryptographic sessions; fanout is per device, not a shared account-wide private key.
