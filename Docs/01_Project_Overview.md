@@ -32,6 +32,12 @@ The messaging API and realtime gateways should be stateless and replica-ready, w
 
 See [Scalability and Caching](./13_Scalability_and_Caching.md). These capabilities are **planned**, not current deployment characteristics.
 
+## Platform ownership decision
+
+The **target Whispr platform is self-hosted**, not Supabase-backed. Retain Next.js and useful hardened Express/Socket.IO components, but replace browser-direct Supabase Auth/Postgres/Realtime/Storage integration with a Whispr-owned authenticated API, reviewed self-hosted OIDC provider, self-managed PostgreSQL, private S3-compatible encrypted-object storage and optional Redis. The OIDC provider owns login credentials; backend controllers own account/device/mailbox/media authorization; clients own history and E2EE keys.
+
+Keep the current Supabase-backed `/app` running only until verified account mapping, old key-backup recovery, client ciphertext import, safe cutover and rollback obligations are met. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
 ## Direction
 
 Keep the existing application and useful UI/auth/database infrastructure, then migrate incrementally: security hardening → canonical schema → local encrypted persistence → reviewed messaging protocol → mailbox delivery → encrypted media → device linking and recovery → verified legacy history migration.
