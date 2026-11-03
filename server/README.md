@@ -69,6 +69,14 @@ Whispr-controlled Node.js controllers, Socket.IO gateways and workers can run on
 
 Use container/IaC reviews, private networking and IAM roles, TLS, secret management, database backup/restore drills, media capability tests, gateway reconnect catch-up and cost alerts. See [Cloud Hosting and Deployment](../Docs/16_Cloud_Hosting_and_Deployment.md).
 
+## Render and optional Cloudflare R2 deployment (TARGET)
+
+Run hardened Whispr Node.js API + Socket.IO from `server/` as a Render **always-on web service**, listening on `0.0.0.0` and `PORT`. Keep the separately deployed reviewed OIDC service and paid **Render PostgreSQL** private where appropriate. The current `/demo` service is **not** the production backend and does not yet implement this deployment contract. Implement mailbox/ACK transactional workers and test recovery after Render restarts. Separate workers and add **Render Key Value** only after measured need.
+
+**Text-only Whispr does not require object storage**. When media ships, configure the Render Media Controller with **server-only Cloudflare R2 credentials**, a private bucket, per-device authorization, size/expiry limits, short-lived R2 S3 presigned URLs and orphan cleanup. Keep the API functional when media is feature-disabled. Never save shared attachments to the Render filesystem or require AWS S3.
+
+See [Vercel + Render + Optional R2](../Docs/17_Render_Vercel_R2_Deployment.md). All these are **planning documents**, not deployed features.
+
 ## Target role (planned, NOT implemented)
 
 Evolve toward a self-hosted modular backend hosting authenticated device directory/key bundles, per-device encrypted mailboxes, ACK/expiration, Whispr-controlled Socket.IO wake-up and private S3-compatible ciphertext media APIs. Long-term chat history and decryption remain on endpoint devices. Keep or retire `/demo` behind explicit isolation; do not treat this design as a shipped API.
