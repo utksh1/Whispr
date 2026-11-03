@@ -65,6 +65,12 @@ REDIS_URL=redis://...          # optional, internal only
 
 Do **not** commit real passwords, OAuth client secrets, object-store keys or OIDC signing keys. A production backend must use HTTPS, verified TLS, private database networks, secret rotation and tested backup/restore. The selected IdP—not a home-grown auth controller—issues login tokens.
 
+## Preferred post-Supabase hosting (TARGET)
+
+After **verified migration**, the intended app platform is **Vercel** for `client/` and **Render** for Whispr API/Socket.IO + reviewed OIDC + **paid Render PostgreSQL**. **Cloudflare R2 is optional for encrypted media only**; a text-only launch needs no remote object storage and no AWS S3 account. Render Key Value/Redis is likewise optional for cross-gateway coordination.
+
+Legacy Supabase credentials and storage are retained only for authorized history, identity and password-derived keyring recovery until the staged cutover succeeds; do not confuse successful provider provisioning with safe decommissioning. See [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md).
+
 ## Required non-destructive migration gates
 
 1. **Inventory and backup:** authorized export of Supabase users, key directory, historical messages and encrypted backups; verify object counts, schema/RLS and independent restore.
