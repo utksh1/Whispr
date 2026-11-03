@@ -58,6 +58,14 @@ A browser database is **not automatically encrypted at rest**. Define a separate
 - Separate delivery receipt from human read receipt; read receipt is opt-in and E2EE where supported.
 - No permanent `messages` server table in the **target** steady state. Temporary encrypted queues and backup ciphertext are permitted by their explicit policies.
 
+## Render PostgreSQL deployment profile (TARGET)
+
+The preferred initial production database is **paid Render PostgreSQL**, not Supabase or an in-process/ephemeral Render web-service filesystem. Whispr owns the schema for account/OIDC mappings, device/public key directory, pending ciphertext, a bounded dedup/ACK ledger and notification outbox; the API/service layer authorizes every request. Validate the paid DB's backup/restore policy, private network connection, role grants and per-device indexes.
+
+**Media metadata must not make an object store mandatory for text-only delivery.** The `media_objects` schema and R2-backed adapter can remain unprovisioned/disabled until encrypted attachments are implemented. Then store only opaque object references and bytes/retention metadata in PostgreSQL; place ciphertext file bytes in **private Cloudflare R2** (or a reviewed interchangeable adapter). Do not use AWS S3 or Render disk as a hard dependency.
+
+See [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md).
+
 ## Encrypted media object rules
 
 Store only ciphertext chunks and minimal opaque manifest metadata server-side. Require authenticated upload/download capability, quotas, max object size, an expiry worker, deletion state, anti-abuse controls and safe download responses. File type/name and decryption key should travel in the encrypted chat manifest, not exposed object metadata.
