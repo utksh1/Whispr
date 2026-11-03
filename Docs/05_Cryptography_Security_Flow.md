@@ -80,6 +80,12 @@ Moving from Supabase Auth to a **self-hosted standards-based OIDC identity provi
 
 Self-hosting an identity provider, Node controllers or object storage does not eliminate hostile-JavaScript/endpoint compromise or server-controlled directory-key substitution. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
 
+## Attachment object-storage selection (TARGET)
+
+**A text-only launch does not require Cloudflare R2 or AWS S3.** When encrypted media is enabled, the preferred storage is a **private Cloudflare R2 bucket** accessed via short-lived, operation-specific presigned URLs issued by the Render Media Controller. The browser encrypts authenticated chunks locally; R2 and Render receive no media key, plaintext thumbnail or plaintext filename. The decryption key and integrity-checked manifest must be distributed inside an authenticated E2EE message, with correct per-device membership and nonce discipline.
+
+R2 URLs are **bearer capabilities**, not peer cryptographic identities; keep them short-lived and do not log them. Validate download integrity client-side and ensure retention supports all authorized recipients. S3 and other storage implementations are adapter alternatives, not mandatory services. See [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md).
+
 ## Security boundaries and honest claims
 
 - A **database-only** breach should expose ciphertext and limited metadata, assuming strong local key security.
