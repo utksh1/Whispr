@@ -41,7 +41,7 @@ Tests:
 npm test
 ```
 
-Current automated tests do not establish secure end-to-end cryptographic sessions, real Supabase RLS or production retention guarantees.
+Current automated tests do not establish secure end-to-end sessions, legacy Supabase RLS or new self-hosted API authorization and retention guarantees.
 
 ## Scalability and caching module contracts (TARGET / NOT IMPLEMENTED)
 
@@ -53,9 +53,19 @@ Support bounded connection/request/queue quotas, `429`/`503` backpressure, reten
 
 Read [Scalability and Caching](../Docs/13_Scalability_and_Caching.md) for proposed TTLs, SLO candidates and security/failure matrix.
 
+## Self-hosted Whispr backend modules (TARGET / NOT IMPLEMENTED)
+
+**New production responsibility:** Whispr owns all authenticated API/controller logic. The current Express server serves `/demo`; do **not** copy its predictable JWT-secret fallback or demo tampering/admin routes into production.
+
+Target modules in `server/src/modules/`: `auth` (self-hosted OIDC verification and stable account mapping), `devices` (enrollment/revocation), `keys` (signed public bundles/prekeys), `mailbox` (pending encrypted envelope API, idempotent ACK), `realtime` (Socket.IO hints), `media` (authorized encrypted file capabilities), `recovery` (opaque E2EE backups). `workers` handle transactional notification outbox, mailbox expiry and media cleanup.
+
+Target infrastructure: **private self-managed PostgreSQL** with `accounts`, verified `account_identities(issuer,subject)`, device/key tables, `delivery_keys` ledger, `pending_envelopes` ciphertext and `mailbox_events` outbox; self-hosted reviewed OIDC provider (Keycloak candidate), private S3-compatible storage and optional Redis. No target Supabase runtime and no direct browser DB access.
+
+Use Docker Compose for isolated dev, TLS/secret isolation and restore drills for production. These modules/paths are **planned**, not in the current codebase. See [Self-Hosted Backend and Supabase Exit](../Docs/15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
 ## Target role (planned, NOT implemented)
 
-Evolve toward a modular backend hosting device directory/key bundles, authenticated pending **per-device encrypted mailboxes**, ACK/expiration, realtime wake-up and private ciphertext media object APIs. Long-term chat history and decryption remain on endpoint devices. Keep or retire `/demo` behind explicit isolation; do not treat this design as a shipped API.
+Evolve toward a self-hosted modular backend hosting authenticated device directory/key bundles, per-device encrypted mailboxes, ACK/expiration, Whispr-controlled Socket.IO wake-up and private S3-compatible ciphertext media APIs. Long-term chat history and decryption remain on endpoint devices. Keep or retire `/demo` behind explicit isolation; do not treat this design as a shipped API.
 
 Do not add a permanent server-side messages archive to the target architecture or advertise browser-independent identity verification without client key pinning.
 
