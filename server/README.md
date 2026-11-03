@@ -43,6 +43,16 @@ npm test
 
 Current automated tests do not establish secure end-to-end cryptographic sessions, real Supabase RLS or production retention guarantees.
 
+## Scalability and caching module contracts (TARGET / NOT IMPLEMENTED)
+
+Initial production design: one modular backend with independently bounded identity/directory, durable mailbox, stateless realtime and encrypted-media authorization modules. PostgreSQL remains authoritative for pending encrypted envelopes, idempotency/ACK, device revocation and notification-outbox records.
+
+**Optional Redis** provides ephemeral gateway routing/presence, allowlisted public metadata cache and isolated rate-limit counters; its outage cannot delete queued ciphertext or disable high-risk abuse protections. Realtime notifications are only hints; clients fetch mailbox state by authenticated cursor.
+
+Support bounded connection/request/queue quotas, `429`/`503` backpressure, retention workers, attachment direct-to-private-object-storage flow, privacy-safe metrics and crash/reconnect/load tests. Defer sharding, partitioning and multi-region writers until actual throughput warrants them.
+
+Read [Scalability and Caching](../Docs/13_Scalability_and_Caching.md) for proposed TTLs, SLO candidates and security/failure matrix.
+
 ## Target role (planned, NOT implemented)
 
 Evolve toward a modular backend hosting device directory/key bundles, authenticated pending **per-device encrypted mailboxes**, ACK/expiration, realtime wake-up and private ciphertext media object APIs. Long-term chat history and decryption remain on endpoint devices. Keep or retire `/demo` behind explicit isolation; do not treat this design as a shipped API.
