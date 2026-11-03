@@ -137,6 +137,23 @@ Use strict tenant/device RLS or equivalent backend authorization; explicit preke
 
 See [Scalability and Caching](./13_Scalability_and_Caching.md) for cache keys/TTLs and operational failure tests.
 
+## Database-aware mailbox API constraints (TARGET / NOT IMPLEMENTED)
+
+The public HTTP route `/v1/envelopes` is a **logical contract**, not a direct browser-table API. The optimized physical proposal uses:
+
+- `delivery_keys`: composite `(recipient_device_id,envelope_id)` idempotency/status metadata, retained after ACK or expiry for a bounded retry window.
+- `pending_envelopes`: **only** undelivered ciphertext, removed after ACK/expiry, with per-device keyset index.
+- `mailbox_events`: minimal transactionally persisted notification intent; independent worker publishes best-effort realtime hints. The sender receives `accepted` **only after the PostgreSQL transaction commits all relevant records**.
+- Large encrypted attachment bytes stay in private object storage; `media_objects` contains only object references/retention metadata.
+
+**Fetch cursor caveat:** `created_at` plus `envelope_id` is suitable for paging one scan, not a permanent high-water cursor across concurrent transactions. Clients restart pending-mailbox sweeps from the beginning on reconnect and periodically; they deduplicate by envelope ID and maintain independently protected local cryptographic state.
+
+**ACK semantics:** authenticate the recipient device, lock/compare the matching ledger record, transition pending to delivered and delete ciphertext **in one transaction**. A repeated ACK must return the same terminal result; a sender's idempotent retry must not recreate deleted ciphertext. The dedup window is bounded; protocol-level replay resistance is still required.
+
+**Backend security:** Supabase service-role connections bypass ordinary RLS. Do not expose queue tables through broad browser grants. Authorize each sender-device, recipient-device fetch, ACK, and media object capability at the API boundary, and validate with adversarial tests.
+
+See [Optimized Database Design](./14_Optimized_Database_Design.md) for SQL examples and migration restrictions.
+
 ## 7. Compatibility and rollout
 
 - Keep legacy endpoints for existing demo and message migration during transition, behind isolation/feature flags where appropriate.
