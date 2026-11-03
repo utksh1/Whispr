@@ -32,6 +32,14 @@ The same Whispr product should later demonstrate:
 - A replayed envelope is deduplicated; a substituted identity key triggers a user warning; backup failure never destroys an existing keyring.
 - A lost device without a configured recovery method demonstrates the **real** risk of lost local history.
 
+## Future scalability demonstration (PLANNED, not in current demo)
+
+A release-readiness demo should show an offline recipient, durable PostgreSQL envelope persistence, and recovery after the realtime gateway/Redis is restarted. The recipient reconnects and fetches ciphertext even if the wake-up hint was lost, commits locally, ACKs, and the pending server envelope disappears without removing the recipient's local chat.
+
+Additional exercises: repeated sender retries create one logical message; stale directory/device cache cannot bypass revoked-device authorization; rate limits still enforce conservative behavior if shared cache fails; authenticated encrypted media remains downloadable through scoped object-storage capabilities; abuse/backpressure returns retryable failures rather than a false `accepted` status.
+
+These are **future integration tests**, not current proof from `/demo`. See [Scalability and Caching](./13_Scalability_and_Caching.md).
+
 ## Evidence and release criteria
 
 Current demo tests cannot stand in for actual cryptographic protocol audits, browser E2E tests, RLS-negative tests or proper key recovery validation. Do not demonstrate a planned feature as though already released.
