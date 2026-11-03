@@ -27,6 +27,7 @@ At present, `/app` is a browser-direct Supabase encrypted-chat prototype with re
 | [Supabase Setup](./10_Supabase_Setup.md) | Current auth, tracked SQL and safe target migration |
 | [11 — Demo Flow](./11_Demo_Flow.md) | Isolated demo and honest security demonstration |
 | [12 — Pitch Notes](./12_Pitch_Notes.md) | Claims grounded in current and intended capabilities |
+| [13 — Scalability and Caching](./13_Scalability_and_Caching.md) | Cache hierarchy, Redis, gateway and mailbox scale, CDN security, TTL, SLO and failure matrix |
 
 ## Scalability and caching reference
 
