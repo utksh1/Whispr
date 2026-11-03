@@ -17,6 +17,14 @@ This preserves the original decision to retire Supabase **without** adding avoid
 - **Cache:** optional managed Redis for ephemeral presence, gateway mapping, safe public metadata and isolated abuse limits. Never the only store for a pending ciphertext envelope.
 - **Runtime resilience:** deployment automation, health checks, rolling/draining restarts, backup/restore drills, limited blast radius, cost budgets and performance SLO instrumentation.
 
+## Preferred initial provider profile (TARGET / NOT DEPLOYED)
+
+**Deployment preference updated:** **Vercel** for existing Next.js `client/`, **Render** for Whispr-controlled Node.js API + Socket.IO, reviewed OIDC provider and **paid Render PostgreSQL**. Use Render Background Workers when message-outbox, expiry and cleanup volume warrants separating them; **Render Key Value** is optional for horizontally scaled gateway routing/caching.
+
+**Media storage is conditional:** a text-only MVP needs **no S3, Cloudflare R2, Vercel Blob or media bucket**. When secure attachments ship, prefer **private Cloudflare R2** with an S3-compatible, short-lived presigned URL adapter. AWS S3 is an alternative rather than a dependency. Never store shared encrypted attachments on Render's ephemeral service filesystem or rely on a single-instance persistent disk.
+
+The AWS architecture later in this document remains an **alternative reference**, not the selected initial profile. The new provider-focused guide documents Vercel monorepo root configuration (`client/`), Render service from `server/`, security, identity-provider costs, optional R2 setup and limitations: [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md).
+
 ## 2. Logical cloud reference architecture
 
 ```mermaid
