@@ -46,6 +46,14 @@ Deploy the backend as a **modular monolith first**, with stateless APIs and real
 
 See [Scalability, Caching and Data Lifecycle](./Docs/13_Scalability_and_Caching.md) for the detailed design and proposed SLOs (none measured or deployed yet).
 
+## Optimized database proposal (target, not implemented)
+
+The target server database is a **temporary per-device mailbox**, not a permanent chat-history store. A narrow `delivery_keys` ledger tracks idempotent send/ACK outcomes; `pending_envelopes` keeps ciphertext only until ACK or expiry; `mailbox_events` stores transactional wake-up intent. PostgreSQL stores minimal identity/media metadata, not attachment bytes. Client devices retain indexed encrypted history and crash-consistent protocol state.
+
+The design explicitly avoids a permanent high-water timestamp cursor (concurrent commits can arrive out of timestamp order), duplicate-redelivery bugs, excessive SQL writes per connection, and premature sharding/partitioning.
+
+See [Optimized Database Design](./Docs/14_Optimized_Database_Design.md). This is **documentation**, not a schema migration or running feature.
+
 ## Setup for current code
 
 ### Web client
