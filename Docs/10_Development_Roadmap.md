@@ -4,11 +4,11 @@
 
 ## Guiding decisions
 
-- Keep existing Next.js UI, Supabase account authentication and PostgreSQL where they help.
+- Keep the existing Next.js UI and reviewed Node/Express/Socket.IO components where useful; **replace Supabase Auth, direct Postgres APIs, Realtime and Storage** with Whispr-controlled interfaces.
 - Replace permanent server chat history with encrypted local storage and temporary per-device ciphertext mailboxes.
 - Use a reviewed, maintained ratcheting protocol rather than designing custom session cryptography.
 - Build encrypted media as an independent client module with temporary server-side ciphertext objects.
-- Start with a backend **modular monolith**, not Kubernetes or a distributed microservices rollout.
+- Start with a **self-hosted Node.js/TypeScript modular monolith**, self-managed PostgreSQL, a reviewed self-hosted OIDC provider and private S3-compatible object storage; **not** Kubernetes or a distributed microservices rollout.
 - Preserve migration/recovery; do not delete current ciphertext history before clients successfully import it.
 
 ## Sequenced work packages / PRs
@@ -17,20 +17,20 @@
 | --- | --- | --- |
 | 01 | **Architecture + threat model** | Finalize trust boundaries, protocol/library evaluation, retention and failure semantics; maintain ADRs |
 | 02 | **Immediate security fixes** | Require strong JWT secrets, isolate demo tampering/admin, prevent public privileged reads/deletes; security-negative tests |
-| 03 | **Database contract reconciliation** | Correct fresh Supabase migrations, RLS tests, separate private email from public directory, identify Express-vs-Supabase adapters |
+| 03 | **Legacy inventory + target database** | Reconcile old Supabase schema/RLS and key backups, define **self-hosted** `accounts` + OIDC identity mapping + mailbox tables, secure controller authorization and migration test fixtures |
 | 04 | **Encrypted local persistence** | IndexedDB-backed local repository and safe key boundary; outbox, inbox, migration checkpoints; eviction/crash tests |
-| 05 | **Device identity and key verification** | Signed identity bundles, device registration, key-change warnings, safety number and recovery flow |
+| 05 | **Self-hosted Auth + device identity** | Evaluate/deploy a reviewed self-hosted OIDC provider, implement token verification/account mapping, step-up device pairing, signed key bundles, warnings and independent recovery flow |
 | 06 | **Reviewed E2EE session integration** | Authenticated prekeys/ratchet, per-device sessions, replay/out-of-order test vectors; atomic state commits |
-| 07 | **Temporary encrypted mailbox** | Per-device envelope queues, stable IDs, validated TTL, sender receipts, durable ACK, expiration cleanup |
+| 07 | **Whispr mailbox controllers** | Own REST controllers/repositories and self-managed PostgreSQL pending ciphertext, stable IDs, validated TTL, ACK, transactional notification outbox and expiry cleanup |
 | 08 | **Offline sync engine** | Retry/backoff, reconnect/cursor, duplicate suppression and sender-delivery state machine |
-| 09 | **Encrypted attachment engine** | Client encryption, chunk AEAD, quotas, signed scoped download capabilities, object expiry |
+| 09 | **Self-hosted encrypted media** | Client encryption, chunk AEAD, quotas, private S3-compatible object store, scoped capabilities, object cleanup and safe previews |
 | 10 | **Media UI + chat experience** | Image/document workflows first; video/voice second; local search and accurate delivery states |
 | 11 | **Multiple devices and backup** | Device pairing, independent sessions, account-login-independent recovery secret, versioned recovery |
-| 12 | **Legacy migration + release** | Import/verify old ciphertext on client, safe cutover, security/perf tests, telemetry minimization, docs |
+| 12 | **Supabase exit + release** | Verified old/new identity linking, password-derived legacy keyring recovery/rekey, client history import, safe cutover/rollback, Supabase retirement only after authorized data validation |
 
 ## Release gates
 
-**Gate A — safety:** no weak production signing secret, no unauthenticated demo admin capability, strict RLS, no plaintext key export via ordinary local storage, no password-reused backup key.
+**Gate A — safety:** no weak production signing secret, no unauthenticated demo admin capability, self-hosted OIDC validation + controller authorization (with least-privilege DB roles/RLS where appropriate), no plaintext key export via ordinary local storage, no password-reused backup key.
 
 **Gate B — functional one-to-one:** audited protocol choice; encrypted local history; durable offline queue; idempotent delivery/ACK; reconnect/replay/crash tests; user-visible identity verification.
 
@@ -40,15 +40,28 @@
 
 ## Optimized database work — within existing PR sequence
 
-**Work package 03 (schema):** reconcile the *actual* Supabase production schema and committed migration drift, then validate a **minimal server model**: `devices`, protocol-selected signed/prekey tables, a composite-PK `delivery_keys` ledger, ciphertext-only `pending_envelopes`, narrow `mailbox_events` transactional outbox, minimal `media_objects`, and opted-in encrypted backup metadata. Keep email out of public profiles and do not add a permanent server conversation search table.
+**Work package 03 (schema):** reconcile the *actual legacy* Supabase schema and committed migration drift, then validate a **self-managed PostgreSQL minimal server model**: `devices`, protocol-selected signed/prekey tables, a composite-PK `delivery_keys` ledger, ciphertext-only `pending_envelopes`, narrow `mailbox_events` transactional outbox, minimal `media_objects`, and opted-in encrypted backup metadata. Keep email out of public profiles and do not add a permanent server conversation search table.
 
 **Work package 04 (client DB):** define protected local message indexes `(conversation_id, local_sort_key, message_id)`, atomic crypto-state/inbox/outbox writes, dedup markers, quota/eviction behavior and local-only search without persisted plaintext indexes.
 
-**Work packages 07–08 (mailbox):** accept envelope/ledger/event in one transaction; ACK deletes ciphertext but retains a time-bounded status tombstone; expiry is a terminal transition; validate sender retries, concurrent ACK/send and crash windows. Mailbox keyset cursor is per-scan only—never an assumed commit-order permanent high-water mark. Use pagination and restart sweeps to avoid missing late commits.
+**Work packages 07–08 (mailbox):** implement Whispr-controlled authenticated mailbox controllers; accept envelope/ledger/event in one self-managed PostgreSQL transaction; ACK deletes ciphertext but retains a time-bounded status tombstone; expiry is terminal; validate sender retries, concurrent ACK/send and crash windows. Mailbox keyset cursor is per-scan only—never an assumed commit-order permanent high-water mark. Use pagination and restart sweeps to avoid missing late commits.
 
 **Release/scale gate:** benchmark query plans, B-tree hit rates, WAL, dead tuples, cleanup batch cost, RLS/security-negative tests, transaction contention, p95 fetch and ACK latency and long-offline device growth **before** partitioning, introducing replicas or changing DB providers.
 
 This proposal is documented in [Optimized Database Design](./14_Optimized_Database_Design.md) and has **not** been implemented or benchmarked.
+
+## Supabase removal — mandatory migration gates
+
+1. **Inventory + backup** the real legacy Supabase schema/RLS, account identities, encrypted history and encrypted key backups. Keep legacy migration files in the repository.
+2. **Deploy isolated self-hosted services:** a reviewed OIDC provider (Keycloak is a candidate, not an installed dependency), Whispr backend controllers, self-managed PostgreSQL and private S3-compatible object storage. Docker Compose is acceptable for development.
+3. **Build account-identity mapping:** local account UUID + verified OIDC `(issuer,subject)`; never merge users solely because emails match. Do not transplant demo JWT code or invent password/OAuth authentication.
+4. **Protect E2EE recovery:** restore the legacy password-derived keyring before account credentials change; re-encrypt backups with an independent recovery secret and test on a fresh device.
+5. **Additive cutover:** implement mailbox/controller contracts and local encrypted history; migrate legacy messages client-side with integrity checks and checkpoints; switch *new* messages behind controlled rollout.
+6. **Retire Supabase only after** account matching, per-device delivery, backup restore, rollback and retention/deletion verification. No premature deletion.
+
+**Target tree** remains inside the existing repo: `server/src/modules/{auth,devices,keys,mailbox,media,realtime,recovery}`, `server/src/workers`, `server/src/infrastructure/{postgres,oidc,redis,object-store}`, `server/migrations` and `infrastructure/compose`. Do not assume these paths exist today.
+
+See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
 
 ## Testing and CI
 
@@ -77,7 +90,7 @@ Integrate the following into the **existing ordered PR plan**; they do not requi
 
 ### Cache implementation sequence
 
-**Design now:** cache allowlists, TTL candidates, invalidation/revocation rules, presence and rate-limit semantics, and failure modes.
+**Design now:** self-hosted OIDC issuer/subject account mapping, backend authorization boundaries, cache allowlists, TTL candidates, invalidation/revocation, presence/rate-limit semantics and failure modes.
 
 **Implement when needed:** Redis for multi-gateway routing/presence or demonstrated metadata cache gains; keep pending ciphertext in PostgreSQL. Treat rate-limit counters as security controls with isolation from general cache eviction.
 
