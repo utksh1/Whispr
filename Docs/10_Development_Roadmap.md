@@ -8,7 +8,7 @@
 - Replace permanent server chat history with encrypted local storage and temporary per-device ciphertext mailboxes.
 - Use a reviewed, maintained ratcheting protocol rather than designing custom session cryptography.
 - Build encrypted media as an independent client module with temporary server-side ciphertext objects.
-- Start with a **self-hosted Node.js/TypeScript modular monolith**, self-managed PostgreSQL, a reviewed self-hosted OIDC provider and private S3-compatible object storage; **not** Kubernetes or a distributed microservices rollout.
+- Start with a **self-hosted Node.js/TypeScript modular monolith**, **private cloud-managed or self-operated PostgreSQL**, a reviewed cloud-hosted OIDC provider and private cloud object storage; **not** Kubernetes or a distributed microservices rollout.
 - Preserve migration/recovery; do not delete current ciphertext history before clients successfully import it.
 
 ## Sequenced work packages / PRs
@@ -23,7 +23,7 @@
 | 06 | **Reviewed E2EE session integration** | Authenticated prekeys/ratchet, per-device sessions, replay/out-of-order test vectors; atomic state commits |
 | 07 | **Whispr mailbox controllers** | Own REST controllers/repositories and self-managed PostgreSQL pending ciphertext, stable IDs, validated TTL, ACK, transactional notification outbox and expiry cleanup |
 | 08 | **Offline sync engine** | Retry/backoff, reconnect/cursor, duplicate suppression and sender-delivery state machine |
-| 09 | **Self-hosted encrypted media** | Client encryption, chunk AEAD, quotas, private S3-compatible object store, scoped capabilities, object cleanup and safe previews |
+| 09 | **Self-hosted encrypted media** | Client encryption, chunk AEAD, quotas, private cloud object store or S3-compatible alternative, scoped capabilities, object cleanup and safe previews |
 | 10 | **Media UI + chat experience** | Image/document workflows first; video/voice second; local search and accurate delivery states |
 | 11 | **Multiple devices and backup** | Device pairing, independent sessions, account-login-independent recovery secret, versioned recovery |
 | 12 | **Supabase exit + release** | Verified old/new identity linking, password-derived legacy keyring recovery/rekey, client history import, safe cutover/rollback, Supabase retirement only after authorized data validation |
@@ -40,11 +40,11 @@
 
 ## Optimized database work — within existing PR sequence
 
-**Work package 03 (schema):** reconcile the *actual legacy* Supabase schema and committed migration drift, then validate a **self-managed PostgreSQL minimal server model**: `devices`, protocol-selected signed/prekey tables, a composite-PK `delivery_keys` ledger, ciphertext-only `pending_envelopes`, narrow `mailbox_events` transactional outbox, minimal `media_objects`, and opted-in encrypted backup metadata. Keep email out of public profiles and do not add a permanent server conversation search table.
+**Work package 03 (schema):** reconcile the *actual legacy* Supabase schema and committed migration drift, then validate a **Whispr-owned PostgreSQL minimal schema**: `devices`, protocol-selected signed/prekey tables, a composite-PK `delivery_keys` ledger, ciphertext-only `pending_envelopes`, narrow `mailbox_events` transactional outbox, minimal `media_objects`, and opted-in encrypted backup metadata. Keep email out of public profiles and do not add a permanent server conversation search table.
 
 **Work package 04 (client DB):** define protected local message indexes `(conversation_id, local_sort_key, message_id)`, atomic crypto-state/inbox/outbox writes, dedup markers, quota/eviction behavior and local-only search without persisted plaintext indexes.
 
-**Work packages 07–08 (mailbox):** implement Whispr-controlled authenticated mailbox controllers; accept envelope/ledger/event in one self-managed PostgreSQL transaction; ACK deletes ciphertext but retains a time-bounded status tombstone; expiry is terminal; validate sender retries, concurrent ACK/send and crash windows. Mailbox keyset cursor is per-scan only—never an assumed commit-order permanent high-water mark. Use pagination and restart sweeps to avoid missing late commits.
+**Work packages 07–08 (mailbox):** implement Whispr-controlled authenticated mailbox controllers; accept envelope/ledger/event in one private PostgreSQL transaction; ACK deletes ciphertext but retains a time-bounded status tombstone; expiry is terminal; validate sender retries, concurrent ACK/send and crash windows. Mailbox keyset cursor is per-scan only—never an assumed commit-order permanent high-water mark. Use pagination and restart sweeps to avoid missing late commits.
 
 **Release/scale gate:** benchmark query plans, B-tree hit rates, WAL, dead tuples, cleanup batch cost, RLS/security-negative tests, transaction contention, p95 fetch and ACK latency and long-offline device growth **before** partitioning, introducing replicas or changing DB providers.
 
@@ -53,7 +53,7 @@ This proposal is documented in [Optimized Database Design](./14_Optimized_Databa
 ## Supabase removal — mandatory migration gates
 
 1. **Inventory + backup** the real legacy Supabase schema/RLS, account identities, encrypted history and encrypted key backups. Keep legacy migration files in the repository.
-2. **Deploy isolated self-hosted services:** a reviewed OIDC provider (Keycloak is a candidate, not an installed dependency), Whispr backend controllers, self-managed PostgreSQL and private S3-compatible object storage. Docker Compose is acceptable for development.
+2. **Deploy isolated self-hosted services:** a reviewed OIDC provider (Keycloak is a candidate, not an installed dependency), Whispr backend controllers, cloud-managed PostgreSQL and private object storage (or equivalent self-operated infrastructure). Docker Compose is acceptable for development.
 3. **Build account-identity mapping:** local account UUID + verified OIDC `(issuer,subject)`; never merge users solely because emails match. Do not transplant demo JWT code or invent password/OAuth authentication.
 4. **Protect E2EE recovery:** restore the legacy password-derived keyring before account credentials change; re-encrypt backups with an independent recovery secret and test on a fresh device.
 5. **Additive cutover:** implement mailbox/controller contracts and local encrypted history; migrate legacy messages client-side with integrity checks and checkpoints; switch *new* messages behind controlled rollout.
@@ -62,6 +62,14 @@ This proposal is documented in [Optimized Database Design](./14_Optimized_Databa
 **Target tree** remains inside the existing repo: `server/src/modules/{auth,devices,keys,mailbox,media,realtime,recovery}`, `server/src/workers`, `server/src/infrastructure/{postgres,oidc,redis,object-store}`, `server/migrations` and `infrastructure/compose`. Do not assume these paths exist today.
 
 See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
+## Cloud-hosted deployment work (TARGET)
+
+Whispr's application/controller and OIDC **services may run in cloud-hosted containers**, with **managed PostgreSQL, private encrypted object storage and optional managed Redis**. That remains a **no-Supabase target architecture**: Whispr controls APIs, authorization, schema, identity linking, and encryption/retention, while the cloud provider may operate infrastructure.
+
+Within the existing delivery PR sequence, add a reviewed IaC/deployment profile, private network boundaries, IAM/workload identity, secrets management, TLS ingress, WebSocket reconnection/draining, health checks, backup and restore drills, cost alerts and encrypted-media authorization tests. Treat AWS ECS/Fargate + RDS + S3 as **illustrative**, not a service purchase or mandatory vendor. Start in one region and avoid Kubernetes/multi-region until demonstrated load.
+
+Detailed design: [Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md).
 
 ## Testing and CI
 
