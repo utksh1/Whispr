@@ -19,7 +19,7 @@ npm run dev
 
 The default local URL is `http://localhost:3000`.
 
-## Current environment
+## Current environment (LEGACY Supabase; current code only)
 
 Create `client/.env.local` manually (**no tracked `client/.env.example`**):
 
@@ -31,6 +31,16 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 ```
 
 Additional realtime/polling flags may be supported by the active source code; inspect configuration before enabling. Only public/publishable variables should have the `NEXT_PUBLIC_` prefix. Never put a service-role key there.
+
+## Replacing Supabase in the client (TARGET / NOT IMPLEMENTED)
+
+- Replace `client/src/lib/supabase.js` and browser-direct `supabase-chat.js` with a typed **Whispr API client**, a reviewed self-hosted OIDC login adapter, a protected local conversation store and encrypted outbox.
+- New client requests must authenticate through Whispr-controlled API controllers; no direct PostgreSQL/PostgREST access and no internal S3 service credentials.
+- Whispr Socket.IO `mailbox:available` events only wake devices to fetch pending envelopes. Persist cryptographic state and message locally **before ACK**; periodically refetch on reconnect, even when no hint arrived.
+- Encrypted media uploads use temporary scoped capabilities from the Media Controller for a private S3-compatible store, not plaintext bytes via the messaging API.
+- Existing users must recover their old password-derived keyring backups with the **old secret** and rekey them under an independent recovery secret before switching login providers. Account linking requires verified identity proof, not matching email.
+
+The current `NEXT_PUBLIC_SUPABASE_*` configuration below is **only for maintaining or migrating legacy code**. Target Whispr API/OIDC settings are not implemented yet. See [Self-Hosted Backend and Supabase Exit](../Docs/15_Self_Hosted_Backend_and_Supabase_Exit.md).
 
 ## Target client modules (planned)
 
