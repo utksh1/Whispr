@@ -27,6 +27,14 @@
 
 See [Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md) for the deployment diagram, alternative providers and implementation gates.
 
+## Preferred initial hosting choice (TARGET)
+
+**Vercel** is preferred for the existing Next.js `client/` frontend and **Render** is preferred for the Whispr-owned Node.js/TypeScript backend + Socket.IO gateway, independently deployed reviewed OIDC provider and **paid Render PostgreSQL**. These are **cloud-hosted Whispr services**, not Supabase; Whispr still controls API contracts, identity/device policy, E2EE protocol, schema and retention.
+
+**Cloudflare R2 is optional** and should be introduced for **client-encrypted media attachments**, not for the text-only MVP. Do not make AWS S3, Render local disks or other blob storage a prerequisite for text and offline delivery. Keep a storage adapter and validate private signed transfers before turning media on. Redis/Render Key Value is likewise optional until multi-replica routing or security limits demand it.
+
+The detailed deployment profile is [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md), while [Cloud Hosting](./16_Cloud_Hosting_and_Deployment.md) records other cloud-provider options.
+
 ## 2. Logical system diagram
 
 ```mermaid
