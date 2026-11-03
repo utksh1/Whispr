@@ -1,148 +1,72 @@
-# Whispr — Supabase Setup
+# Whispr — Supabase Setup and Schema Migration
 
-Whispr's product app (`/app`) now uses Supabase Auth, Postgres, and Realtime from the browser.
+> **Status:** Setup for the **current** `/app` implementation, plus a clearly labeled **target** migration plan. The local-first architecture has **not** been deployed. These instructions remain part of the existing Whispr repo.
 
-## Project Env
+## Current product integration
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://lptfbgohubujthjnerwm.supabase.co
+`/app` uses Supabase **Auth**, browser-direct **Postgres** reads/writes, and **Realtime** updates. The server currently retains encrypted `messages` rows; device-local permanent history and pending mailboxes are planned.
+
+The standalone Express/Socket.IO `/demo` path has separate authentication and storage contracts. Do not assume its JWT or schema is interchangeable with Supabase.
+
+## Environment
+
+Create `client/.env.local` (there is currently **no tracked `client/.env.example`**):
+
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_publishable_key
-NEXT_PUBLIC_SUPABASE_PROJECT_REF=lptfbgohubujthjnerwm
-SUPABASE_SECRET_KEY=your_secret_key
+NEXT_PUBLIC_SUPABASE_PROJECT_REF=your_project_ref
+NEXT_PUBLIC_API_URL=http://localhost:4000
 ```
 
-Only `NEXT_PUBLIC_*` values belong in the browser bundle.
+Only `NEXT_PUBLIC_*` variables belong in the browser bundle. For server-only privileged operations, use **server-only environment variables** and never expose service-role keys to the browser or logs.
 
-Never expose `SUPABASE_SECRET_KEY` to the client.
+The older docs' absolute workstation links to `/Users/Utkarsh/.../supabase/whispr_schema.sql` and `supabase/mcp_config.example.json` are **not valid committed repository paths**. Do not rely on them.
 
-## Required Supabase Auth Settings
+## Authentication setup
 
-### 1. Site URL and Redirect URLs
+1. Configure site URL `http://localhost:3000` and exact deployed origin(s) in Supabase Auth.
+2. Add the callback `/app` where needed for Google OAuth.
+3. Enable email/password and, if required, Google provider. In production, use verified email confirmation and properly configured outbound email. Avoid disabling confirmation outside isolated local testing.
+4. Account login currently feeds the same password into the legacy encrypted private-key backup workflow. **This is a security issue to remove**, not a recommended configuration.
+5. Google OAuth on a fresh device does not provide a separate recovery-secret prompt today, so old keyring backups may be inaccessible.
 
-In Supabase Auth settings, allow these frontend URLs:
-- `http://localhost:3000`
-- `https://whispr-client-utksh1.vercel.app`
+## Current SQL migration source
 
-For Google OAuth, also allow:
-- `http://localhost:3000/app`
-- `https://whispr-client-utksh1.vercel.app/app`
+The SQL actually tracked in this repo is at:
 
-If you use a preview deployment or custom domain, add that exact origin and `/app` callback too.
+- [Initial Supabase schema](../server/supabase/migrations/20260418071552_initial_schema.sql)
+- [OAuth trigger update](../server/supabase/migrations/20260418071857_update_auth_trigger_for_oauth.sql)
+- [Client schema alignment attempt](../server/supabase/migrations/20260418071940_align_schema_with_client.sql)
+- [Profile insert RLS](../server/supabase/migrations/20260418072623_add_profiles_insert_policy.sql)
+- [OAuth username collision handling](../server/supabase/migrations/20260418110000_fix_oauth_user_trigger_username_collisions.sql)
+- [Participant delete policy](../server/supabase/migrations/20260418113000_allow_participants_delete_conversations.sql)
 
-### 2. Email/Password Auth
+**Known blocker:** the committed SQL migrations do not fully recreate the shape expected by `client/src/lib/supabase-chat.js` (including key IDs, profile fields and message receiver columns). Some legacy migrations retain incompatible non-null constraints. A new Supabase project created only from tracked SQL may not be usable. Do **not** paste ad hoc SQL from an untracked file or apply destructive corrections to live data.
 
-Enable email/password sign-in in Supabase Auth if you want the built-in register/login form to work.
+## Required schema validation before any redesign migration
 
-For local demos, turn off email confirmation:
-- Supabase Dashboard → Authentication → Sign In / Providers → Email
-- Disable `Confirm email`
-- Save changes
+1. Export schema and RLS policies from the **running** Supabase project (with authorized access).
+2. Diff against the six tracked migrations and current client queries.
+3. Generate ordered, idempotent migration files in the repo; preserve legacy rows.
+4. Replay migrations against a fresh isolated test project and run real RLS-negative tests as two users plus a nonparticipant.
+5. Verify `profiles` does not expose private email data through public SELECT policy; restrict service-role access to server-only code.
+6. Run auth, ciphertext roundtrip and backup recovery tests; record baseline before introducing the new mailbox model.
 
-Why: Supabase's built-in email sender is intentionally limited. If confirmation emails are enabled and you create several test users, signup can fail with `Email rate limit exceeded` / `over_email_send_rate_limit`. For production, keep email confirmation on and configure custom SMTP under Authentication email settings, then adjust Auth rate limits in Authentication → Rate Limits.
+## Target transition (NOT IMPLEMENTED)
 
-### 3. Google OAuth
+- Introduce `devices`, verified public key bundles, `delivery_envelopes`, idempotent ACKs, limited delivery receipts, `media_objects` and optional encrypted backup metadata alongside the legacy tables.
+- Switch `/app` to encrypted local conversation history and a **pending-only per-device mailbox** using versioned APIs; use Realtime as wake-up hint, not the source of durable history.
+- Use private object storage for **client-encrypted** attachments only; never hand object storage the file keys or plaintext previews.
+- Import old history to local encrypted storage on each device before retiring legacy `messages`; never discard users' ciphertext on a speculative schema rollout.
+- Replace password-derived backup recovery with an independent secret and explicit restore UX.
 
-Enable the Google provider in Supabase Auth and configure the Google Cloud OAuth credentials there.
+See [Data Design](./08_Database_Design.md), [API Design](./09_API_Design.md), [Roadmap](./10_Development_Roadmap.md).
 
-Product note:
-- Google sign-in creates the Supabase session.
-- Whispr still encrypts the private-key backup with a user password-derived secret.
-- So Google sign-in alone does not restore an old encrypted key backup on a brand-new device unless a backup-passphrase restore flow is added later.
+## Demo-only and privileged tooling
 
-## Required Database Schema
+The Next.js `/api/admin` route can operate with a Supabase service-role client and currently lacks user authorization checks; `ENABLE_DEMO_ADMIN` must never be enabled in a public production deployment. Remove/isolate this path as part of the security work. The Express demo tamper route is likewise not a production capability.
 
-Run the SQL in:
-- [supabase/whispr_schema.sql](/Users/Utkarsh/Desktop/Projects/Whispr/supabase/whispr_schema.sql)
+## MCP / developer tooling
 
-This creates:
-- `profiles`
-- `user_keys`
-- `private_key_backups`
-- `messages`
-
-It also enables:
-- Row Level Security
-- ownership policies for writes
-- participant-only message reads
-- Realtime publication for `messages`
-
-## Current Product Tables
-
-### `profiles`
-
-Purpose: user discovery and active public key lookup.
-
-Stores:
-- auth user id
-- username
-- current public key
-- active key id
-- backup presence flag
-
-### `user_keys`
-
-Purpose: historical public keys by deterministic key id.
-
-Stores:
-- key id
-- owner user id
-- public key
-- active/revoked status
-
-### `private_key_backups`
-
-Purpose: encrypted keyring backup material only.
-
-Stores:
-- ciphertext
-- salt
-- iv
-- version
-
-Plaintext private keys must never be stored.
-
-### `messages`
-
-Purpose: ciphertext-only message storage and realtime sync.
-
-Stores:
-- sender and receiver ids
-- sender and receiver key ids
-- ciphertext
-- nonce
-- salt
-- version
-- timestamps
-
-## Supabase MCP
-
-Whispr can use Supabase's MCP server for docs, database work, debugging, functions, storage, and branching-aware tooling.
-
-Example config:
-- [supabase/mcp_config.example.json](/Users/Utkarsh/Desktop/Projects/Whispr/supabase/mcp_config.example.json)
-
-If you want to use the same config in Antigravity, add this to `~/.gemini/antigravity/mcp_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "supabase": {
-      "serverUrl": "https://mcp.supabase.com/mcp?project_ref=lptfbgohubujthjnerwm&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching%2Cstorage"
-    }
-  }
-}
-```
-
-After saving the config, restart the MCP client and complete the Supabase OAuth flow if prompted.
-
-Optional agent skills install:
-
-```bash
-npx skills add supabase/agent-skills
-```
-
-## Current Scope
-
-The `/app` route now uses Supabase Auth, Postgres, and Realtime directly from the browser.
-
-The `/demo` route and Express server still remain for the hackathon explanation flow and Swagger docs.
+Supabase MCP may be configured through the official service with project-scoped authorization. Example clients can use `https://mcp.supabase.com/mcp?project_ref=YOUR_PROJECT_REF` and request only needed capabilities. Treat MCP access as privileged; use short-lived credentials and never commit access tokens, secret keys or personal machine paths.
