@@ -30,6 +30,12 @@ At agreed peak load, the system must preserve per-device mailbox delivery despit
 
 Candidate service targets and measurable traffic formulas are specified in [Scalability and Caching](./13_Scalability_and_Caching.md). No benchmark or operational SLO is claimed yet.
 
+## Control and deployability requirement
+
+Whispr should operate without mandatory Supabase services in its target deployment: run a self-hosted reviewed OIDC provider, Whispr-owned controllers, private PostgreSQL, optional Redis, Socket.IO and a private S3-compatible encrypted-object store. Identity tokens establish authenticated account access, **not** automatic messaging-device trust. Migration must preserve historical ciphertext and recover legacy password-derived encrypted key backups before changing login providers. Avoid writing an insecure custom authentication protocol.
+
+This is a **target requirement**, not an implemented capability. Detailed decision: [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
 ## Non-goals
 
 Immediate group chat, calls, federation, high-scale distributed microservices, guaranteed recipient deletion, anonymity from global observers, or protection from an actively compromised endpoint.
