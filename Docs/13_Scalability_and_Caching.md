@@ -44,13 +44,21 @@ The diagram is a **logical decomposition**, not a recommendation to deploy every
 
 ## Self-hosted controller and infrastructure ownership (TARGET)
 
-Supabase is a **legacy implementation dependency**, not the future platform. Initial production uses Whispr-owned Node.js/TypeScript modules with an independently deployed **self-hosted reviewed OIDC provider** (Keycloak is an evaluated option), self-managed PostgreSQL, private S3-compatible ciphertext object storage and optional Redis. The Auth Controller verifies OIDC issuer/audience/JWKS and maps trusted identities to stable Whispr account UUIDs. Device authorization, revocation and mailbox access are enforced in controller/service policies, never assumed from cached data or direct browser database grants.
+Supabase is a **legacy implementation dependency**, not the future platform. Initial production uses Whispr-owned Node.js/TypeScript modules with an independently deployed **self-hosted reviewed OIDC provider** (Keycloak is an evaluated option), private **cloud-managed or self-operated PostgreSQL**, cloud object storage for ciphertext and optional **managed** Redis. The Auth Controller verifies OIDC issuer/audience/JWKS and maps trusted identities to stable Whispr account UUIDs. Device authorization, revocation and mailbox access are enforced in controller/service policies, never assumed from cached data or direct browser database grants.
 
-Whispr's WebSocket/Socket.IO gateways may scale horizontally, using Redis only for ephemeral presence and wake-up routing; they do not receive the only copy of undelivered ciphertext. The backend is a **modular monolith first**, with independent data/control/media responsibilities and workers; use Docker Compose for development, backed-up single-region infrastructure initially, and defer partitioning and cross-region writers until evidence supports them.
+Whispr's WebSocket/Socket.IO gateways may scale horizontally, using Redis only for ephemeral presence and wake-up routing; they do not receive the only copy of undelivered ciphertext. The backend is a **modular monolith first**, with independent data/control/media responsibilities and workers; use Docker Compose for development, and backed-up single-region **cloud infrastructure** initially, and defer partitioning and cross-region writers until evidence supports them.
 
 **Self-hosted operations are a security responsibility:** TLS/CA verification, isolated internal networks, least-privilege database and object-store roles, OIDC upgrades and secret rotation, PostgreSQL point-in-time recovery/restore drills, object expiry consistency, observability without message content, and documented incident response. Explicitly test OIDC unavailability, PostgreSQL recovery, object-store failure, and rollback during legacy Supabase exit.
 
 See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
+## Cloud-hosted deployment and managed services
+
+Run Whispr-owned controllers, Socket.IO gateways, workers and the selected reviewed OIDC provider on cloud compute as container workloads. A private **managed PostgreSQL** service can own durable pending ciphertext/ACK/outbox, an **S3-compatible or provider-native object store** can hold temporary media ciphertext, and **managed Redis** remains optional for ephemeral coordination. Cloud-hosting does not alter E2EE or eliminate application authorization obligations.
+
+Use cloud IAM roles and private networking, short-lived object capabilities, secrets management, p95 queue/reconnect metrics and tested restore drills. Scale API and gateway replicas separately when measured; never use cloud Redis Pub/Sub or WebSockets as the durable mailbox. Note that serverless WebSocket platforms may impose connection timeouts and reconnect costs.
+
+See [Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md).
 
 ## 3. Delivery correctness and mailbox state machine
 
