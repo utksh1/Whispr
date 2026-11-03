@@ -42,6 +42,16 @@ flowchart TB
 
 The diagram is a **logical decomposition**, not a recommendation to deploy every box as a service. A native client may eventually offer a stronger executable-trust model than dynamically delivered browser scripts.
 
+## Self-hosted controller and infrastructure ownership (TARGET)
+
+Supabase is a **legacy implementation dependency**, not the future platform. Initial production uses Whispr-owned Node.js/TypeScript modules with an independently deployed **self-hosted reviewed OIDC provider** (Keycloak is an evaluated option), self-managed PostgreSQL, private S3-compatible ciphertext object storage and optional Redis. The Auth Controller verifies OIDC issuer/audience/JWKS and maps trusted identities to stable Whispr account UUIDs. Device authorization, revocation and mailbox access are enforced in controller/service policies, never assumed from cached data or direct browser database grants.
+
+Whispr's WebSocket/Socket.IO gateways may scale horizontally, using Redis only for ephemeral presence and wake-up routing; they do not receive the only copy of undelivered ciphertext. The backend is a **modular monolith first**, with independent data/control/media responsibilities and workers; use Docker Compose for development, backed-up single-region infrastructure initially, and defer partitioning and cross-region writers until evidence supports them.
+
+**Self-hosted operations are a security responsibility:** TLS/CA verification, isolated internal networks, least-privilege database and object-store roles, OIDC upgrades and secret rotation, PostgreSQL point-in-time recovery/restore drills, object expiry consistency, observability without message content, and documented incident response. Explicitly test OIDC unavailability, PostgreSQL recovery, object-store failure, and rollback during legacy Supabase exit.
+
+See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
 ## 3. Delivery correctness and mailbox state machine
 
 **Client-facing logical states:**
