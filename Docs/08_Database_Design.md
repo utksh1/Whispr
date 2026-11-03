@@ -59,6 +59,24 @@ A browser database is **not automatically encrypted at rest**. Define a separate
 
 Store only ciphertext chunks and minimal opaque manifest metadata server-side. Require authenticated upload/download capability, quotas, max object size, an expiry worker, deletion state, anti-abuse controls and safe download responses. File type/name and decryption key should travel in the encrypted chat manifest, not exposed object metadata.
 
+## Physical mailbox scaling and cache relationships (target)
+
+The mailbox table should index **recipient device plus stable pagination cursor** (e.g. `recipient_device_id, created_at, envelope_id`), and separately support `expires_at` expiration scans. Implement keyset pagination instead of offset scanning. Enforce scoped idempotent envelope uniqueness; preserve tombstones/ACK records only for the bounded retry window.
+
+A transactional server outbox records pending wake-up events **in the same PostgreSQL transaction** as the accepted envelope. An independent worker retries notification publication. This avoids message-loss semantics when Redis Pub/Sub or a realtime gateway is unavailable.
+
+Use bounded expiry batch deletes first; adopt time/hash partitioning only once measurements justify it. A time partition **cannot** be dropped while any contained item must remain retrievable. Plan idempotency uniqueness carefully because PostgreSQL partitioned uniqueness rules constrain partition keys. Use authoritative primary writes for queue acceptance, ACKs and revocations; do not make lagged replicas or cached authorization decisions the final authority.
+
+### Cache state (not message storage)
+
+Redis is an **optional** performance/coordination dependency; approved data includes minimal public profile display fields, signed/versioned **public** key bundles, ephemeral presence, gateway routing and short-lived abuse counters. Never cache plaintext messages, recovery secrets, private keys, token material, or private email directory fields. Rate-limit keys require isolation from ordinary cache eviction.
+
+Suggested starting TTLs **to validate**, not implemented: public profile 5–15 minutes; signed public device bundles 30–120 seconds; presence/gateway heartbeats 45–90 seconds. Revocation/identity checks must remain authoritative or version-pinned; TTL expiry alone is insufficient protection against stale keys. On Redis loss, mailbox data remains in PostgreSQL, presence becomes unknown, and recipient fetch catches up after reconnect.
+
+Media ciphertext remains in private object storage, not Redis. CDN caching is optional and must use scoped authorization/cache keys, short-lived bearer capabilities and explicit deletion/purge policy.
+
+See [Scalability and Caching](./13_Scalability_and_Caching.md) for indexes, retention, failure behavior and throughput assumptions.
+
 ## Migration from existing Whispr storage
 
 1. Freeze the current schema contract and inventory tables/RLS against running deployment.
