@@ -34,7 +34,7 @@ flowchart LR
 
 The target also includes reviewed ratcheting one-to-one encryption, key verification, per-device identity, local-only search, encrypted media sharing, separate recovery secrets and safe migration of legacy chat history.
 
-This is a **self-hosted modular monolith first** approach: retain Next.js and hardened Node/Express/Socket.IO components, but replace Supabase Auth, direct database APIs, Realtime and Storage with Whispr-owned controllers, self-hosted OIDC and private PostgreSQL/object storage. No Kubernetes, Kafka or broad rewrite is necessary to start.
+This is a **self-hosted modular monolith first** approach: retain Next.js and hardened Node/Express/Socket.IO components, but replace Supabase Auth, direct database APIs, Realtime and Storage with Whispr-owned controllers, self-hosted OIDC and private cloud-managed PostgreSQL/object storage or self-operated equivalents. No Kubernetes, Kafka or broad rewrite is necessary to start.
 
 ## Scale and caching direction (target, NOT implemented)
 
@@ -56,13 +56,21 @@ See [Optimized Database Design](./Docs/14_Optimized_Database_Design.md). This is
 
 ## Self-hosted backend decision (TARGET / NOT IMPLEMENTED)
 
-**Supabase is a legacy dependency, not part of Whispr's future runtime.** The target client uses a reviewed self-hosted OIDC provider (Keycloak is a candidate) and Whispr-owned Auth/Device/Key/Mailbox/Realtime/Media/Recovery controllers. The backend runs a private self-managed PostgreSQL database and private S3-compatible encrypted object store, with optional Redis for ephemeral routing, presence and safe metadata. Device-local encrypted conversation history remains the source of truth.
+**Supabase is a legacy dependency, not part of Whispr's future runtime.** The target client uses a reviewed self-hosted OIDC provider (Keycloak is a candidate) and Whispr-owned Auth/Device/Key/Mailbox/Realtime/Media/Recovery controllers. The backend runs a private **cloud-managed PostgreSQL** and private cloud object storage (or self-operated equivalents), with optional Redis for ephemeral routing, presence and safe metadata. Device-local encrypted conversation history remains the source of truth.
 
 **Auth separation:** the identity provider holds passwords, MFA and OAuth credentials; Whispr maps verified OIDC issuer/subject to stable account IDs and separately verifies messaging devices. Never promote the current insecure demo JWT implementation to production.
 
 **Migration:** users must verify account linking, recover and re-encrypt old password-derived keyring backups, import legacy ciphertext locally and pass rollback/retention checks before Supabase is retired.
 
 [Self-Hosted Backend and Supabase Exit](./Docs/15_Self_Hosted_Backend_and_Supabase_Exit.md) documents the controller architecture and non-destructive transition.
+
+## Cloud deployment direction (TARGET / NOT DEPLOYED)
+
+**Cloud hosting is compatible with Whispr-owned controllers.** We can deploy the Next.js frontend, Whispr Node/Socket.IO services and a reviewed OIDC identity provider as cloud containers, while using **managed PostgreSQL**, private cloud object storage and optional managed Redis. This retains Whispr's account/device authorization and E2EE keys on the clients and removes Supabase as a future runtime dependency.
+
+AWS ECS/Fargate + RDS PostgreSQL + S3 + secrets/monitoring is a reference implementation, not a locked-in vendor. A protected single-region deployment is preferable to building Kubernetes, Kafka or multi-region from day one. Verify IAM, TLS, database backups, object-store access controls, WebSocket reconnect and cloud cost budgets.
+
+[Cloud Hosting and Deployment](./Docs/16_Cloud_Hosting_and_Deployment.md) documents the infrastructure profiles and security gates.
 
 ## Setup for current code
 
