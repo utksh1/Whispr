@@ -19,8 +19,9 @@
 | `devices` | `device_id`, `account_id`, identity key, state, timestamps | Registered devices and explicit revocation |
 | `identity_key_events` | `device_id`, signed binding, prior fingerprint, version | Key changes and verification audit |
 | `prekey_bundles` | `device_id`, signed prekey metadata, one-time prekey reference | Asynchronous session initiation; rotate/replenish |
-| `delivery_envelopes` | `envelope_id`, `recipient_device_id`, `sender_device_id`, ciphertext, protocol version, `expires_at`, `created_at` | **Pending only**, deletion on durable device ACK or expiry |
-| `delivery_acks` | envelope/device key, acknowledged timestamp | Idempotency; short bounded retention |
+| `pending_envelopes` | composite (`recipient_device_id`, `envelope_id`), ciphertext, protocol version, `expires_at`, `created_at` | **Pending ciphertext only**; delete on durable device ACK or expiry |
+| `delivery_keys` | composite (`recipient_device_id`, `envelope_id`), sender device, status, bounded retention | **Small idempotency/ACK tombstones** retained briefly after ciphertext deletion |
+| `mailbox_events` | event ID, destination device, publication/attempt state | **Transactional notification outbox** in same acceptance transaction; bounded cleanup |
 | `media_objects` | opaque ID, owner, ciphertext size, expiry, lifecycle status | Encrypted object references only; TTL cleanup |
 | `encrypted_backups` | owner/device, backup version, ciphertext pointer, salt/KDF params, timestamp | **Opt-in**, opaque E2EE recovery; independent secret |
 | `rate_limit_state` | account/device/IP bucket, count, expiration | Abuse controls, minimum logging |
@@ -49,7 +50,7 @@ A browser database is **not automatically encrypted at rest**. Define a separate
 ## Delivery queue constraints
 
 - One envelope per destination device, or equivalent recipient-scoped capability, with strict per-device authorization.
-- Stable client-generated IDs and server uniqueness constraints for idempotent retries.
+- Stable client-generated IDs and server uniqueness constraints for idempotent retries. Use a **compact `delivery_keys` ledger** so ACK/expiry deletes the large payload from `pending_envelopes` while retaining a small terminal idempotency record for the sender retry horizon.
 - Expiry timestamp and garbage collection; a maximum TTL is a **configurable design decision**, not an implemented constant.
 - ACK means receiver **durably persisted** the envelope/message. Reconnect and duplicates must not rollback ratchet state.
 - Separate delivery receipt from human read receipt; read receipt is opt-in and E2EE where supported.
@@ -61,9 +62,9 @@ Store only ciphertext chunks and minimal opaque manifest metadata server-side. R
 
 ## Physical mailbox scaling and cache relationships (target)
 
-The mailbox table should index **recipient device plus stable pagination cursor** (e.g. `recipient_device_id, created_at, envelope_id`), and separately support `expires_at` expiration scans. Implement keyset pagination instead of offset scanning. Enforce scoped idempotent envelope uniqueness; preserve tombstones/ACK records only for the bounded retry window.
+The `pending_envelopes` mailbox table should index **recipient device plus stable per-sweep pagination cursor** (e.g. `recipient_device_id, created_at, envelope_id`), and separately support `expires_at` expiration scans. Use bounded keyset pagination rather than broad `OFFSET` scans. **Do not use the timestamp as a permanent mailbox catch-up watermark:** concurrent inserts can commit out of timestamp order. Start fresh pending-mailbox scans on reconnect and periodically, with client deduplication. Enforce idempotency through the `delivery_keys` composite PK and retain only narrow terminal records for the bounded retry window.
 
-A transactional server outbox records pending wake-up events **in the same PostgreSQL transaction** as the accepted envelope. An independent worker retries notification publication. This avoids message-loss semantics when Redis Pub/Sub or a realtime gateway is unavailable.
+A `mailbox_events` transactional server outbox records pending wake-up events **in the same PostgreSQL transaction** as the new `delivery_keys` and `pending_envelopes` rows. Independent workers retry notification publication. This avoids message-loss semantics when Redis Pub/Sub or a realtime gateway is unavailable. ACK atomically marks the small ledger entry delivered and removes ciphertext; expiry does the analogous terminal transition.
 
 Use bounded expiry batch deletes first; adopt time/hash partitioning only once measurements justify it. A time partition **cannot** be dropped while any contained item must remain retrievable. Plan idempotency uniqueness carefully because PostgreSQL partitioned uniqueness rules constrain partition keys. Use authoritative primary writes for queue acceptance, ACKs and revocations; do not make lagged replicas or cached authorization decisions the final authority.
 
@@ -75,7 +76,7 @@ Suggested starting TTLs **to validate**, not implemented: public profile 5–15 
 
 Media ciphertext remains in private object storage, not Redis. CDN caching is optional and must use scoped authorization/cache keys, short-lived bearer capabilities and explicit deletion/purge policy.
 
-See [Scalability and Caching](./13_Scalability_and_Caching.md) for indexes, retention, failure behavior and throughput assumptions.
+See [Optimized Database Design](./14_Optimized_Database_Design.md) for an illustrative physical schema, dedup/ACK races, index choices, and per-sweep cursor semantics. See [Scalability and Caching](./13_Scalability_and_Caching.md) for retention, failure behavior and throughput assumptions.
 
 ## Migration from existing Whispr storage
 
