@@ -21,6 +21,23 @@
 
 Begin with **one backend modular monolith**, PostgreSQL and private encrypted-object storage. Do not introduce Kafka, Redis, Kubernetes, Prisma, libsodium, MLS libraries or multiple independent services simply because they are listed as possible future technologies. Select each only after validating a concrete requirement.
 
+## Optional cache and high-scale components (TARGET / NOT INSTALLED)
+
+| Component | Recommended starting position | When to introduce / split |
+| --- | --- | --- |
+| Redis | **Optional** ephemeral presence, stateless gateway routing, allowlisted public metadata caching | When gateway replicas, rate limits or measured cache savings require it; isolate rate-limit state from eviction |
+| PostgreSQL indexes / expiry worker | **Required** for durable pending mailbox | Add keyset indexes, bounded cleanup jobs and transactionally enqueued wake-up events at mailbox implementation |
+| PostgreSQL table partitioning | **Deferred** | Only after real queue volume and retention metrics show benefit |
+| CDN | Static immutable assets now; encrypted-media CDN **optional** | When media bandwidth/latency justify it, with scoped auth and cache-key tests |
+| Object storage | Private encrypted media bytes only | Introduce with encrypted attachment feature; direct scoped uploads rather than API byte proxying |
+| Message broker / Kafka | **Not selected** | Consider only if outbox workers + Postgres mailbox and Redis hints cannot satisfy measured reliability/throughput |
+| Multi-region home mailboxes | **Deferred** | Require regional latency evidence, authoritative home-writer routing and fenced failover |
+| Tracing / metrics | Privacy-safe operational metrics | Define acceptance/ACK/expiry and gateway/DB overload metrics before initial production rollout |
+
+Do not cache secrets or plaintext in Redis/CDNs; a cache hit must never bypass authentication, device authorization or peer identity verification. Redis Pub/Sub notifications are non-durable and cannot replace PostgreSQL mailboxes.
+
+The exact cache hierarchy, candidate TTLs, failure behavior and proposed SLOs live in [Scalability and Caching](./13_Scalability_and_Caching.md).
+
 ## Browser vs native trust
 
 A browser-based local database and Web Crypto keys improve local-first behavior, **not** immunity from XSS, malicious extensions or an attacker controlling delivered JavaScript. Consider a signed desktop/mobile client as a future hardening path after the web product architecture works.
