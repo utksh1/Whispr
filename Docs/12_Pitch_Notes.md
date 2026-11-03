@@ -35,6 +35,12 @@ Whispr is designed so chat history remains local while an authoritative pending 
 
 Do not advertise throughput, latency, global availability, Redis, CDN or multi-region capability as **implemented or measured** until deployment and tests support the claim. The detailed plan is [Scalability and Caching](./13_Scalability_and_Caching.md).
 
+## Proposed hosting story (NOT SHIPPED)
+
+Whispr plans to use **Vercel for its Next.js frontend** and **Render for independently controlled backend controllers, realtime and database operations**. Secure text messaging needs only a durable pending-envelope database, not AWS S3. **Private Cloudflare R2** is a later optional attachment store for ciphertext; Redis/Render Key Value is optional for scaling. The cloud providers host infrastructure but do not decrypt chat content. The architecture is documented, **not deployed or benchmarked**.
+
+Guide: [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md).
+
 ## A grounded closing line
 
 "Whispr is moving from encrypted chat as a feature toward a local-first secure-messaging architecture where the server delivers encrypted data but is not the permanent home of conversations."
