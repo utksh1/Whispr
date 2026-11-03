@@ -43,6 +43,14 @@ Additional realtime/polling flags may be supported by the active source code; in
 
 A browser's local storage is vulnerable to loss/eviction and same-origin hostile JavaScript. A non-extractable key does not eliminate XSS risk; do not promise absolute endpoint secrecy.
 
+## Client performance and caching (TARGET / NOT IMPLEMENTED)
+
+The UI may keep a bounded in-memory cache of currently viewed decrypted messages and rendered thumbnails. The **encrypted IndexedDB chat repository is authoritative local history**, not a disposable cache of server records; OPFS is a candidate for encrypted attachment objects. Implement storage quota/eviction detection and recovery UX.
+
+Offline outbox ciphertext and ratchet state must be transactionally recoverable. A lost websocket hint never means a missing message: fetch the durable pending mailbox on reconnect. Reuse envelope IDs and deduplicate redelivery. Do not place plaintext in HTTP/Service Worker caches, browser `localStorage`, shared CDN responses or network telemetry.
+
+See [Scalability and Caching](../Docs/13_Scalability_and_Caching.md) for cache boundaries and client failure tests.
+
 ## Engineering notes
 
 Run project tests/build commands from `client/package.json`. Test current and target behavior separately. Document any changed client protocol/storage contracts in [Architecture](../Docs/04_System_Architecture.md), [Crypto](../Docs/05_Cryptography_Security_Flow.md), and [API](../Docs/09_API_Design.md). No new `/v1` mailbox endpoint described in those documents is shipped yet.
