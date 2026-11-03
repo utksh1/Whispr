@@ -42,6 +42,14 @@ Additional realtime/polling flags may be supported by the active source code; in
 
 The current `NEXT_PUBLIC_SUPABASE_*` configuration below is **only for maintaining or migrating legacy code**. Target Whispr API/OIDC settings are not implemented yet. See [Self-Hosted Backend and Supabase Exit](../Docs/15_Self_Hosted_Backend_and_Supabase_Exit.md).
 
+## Vercel deployment and encrypted media toggle (TARGET)
+
+The existing `client/` directory is the intended **Vercel project Root Directory**. Configure browser-public API/WebSocket and OIDC URLs only after corresponding code exists; **no DB password, IdP secret, R2 API credential or decryption key goes into `NEXT_PUBLIC_*`**. Whispr client-only chat storage/encryption must not move into Vercel SSR or shared caches.
+
+**Text-only mode needs no R2/S3 configuration**. When encrypted attachments are implemented, the browser encrypts files locally and uploads/downloads ciphertext directly with short-lived, per-object capabilities from the Render Media Controller. Preferred store: **private Cloudflare R2**, with exact browser CORS origins and integrity checks. Do not assume arbitrary custom media domains work with R2 S3 presigned URLs. Keep an explicit media-disabled state and tested UI behavior when R2 is not configured.
+
+See [Vercel + Render + Optional R2](../Docs/17_Render_Vercel_R2_Deployment.md).
+
 ## Target client modules (planned)
 
 - Protected IndexedDB local chat repository and OPFS encrypted attachment cache.
