@@ -137,7 +137,7 @@ Use strict tenant/device RLS or equivalent backend authorization; explicit preke
 
 See [Scalability and Caching](./13_Scalability_and_Caching.md) for cache keys/TTLs and operational failure tests.
 
-## Database-aware mailbox API constraints (TARGET / NOT IMPLEMENTED)
+## 7. Database-aware mailbox API constraints (TARGET / NOT IMPLEMENTED)
 
 The public HTTP route `/v1/envelopes` is a **logical contract**, not a direct browser-table API. The optimized physical proposal uses:
 
@@ -154,7 +154,7 @@ The public HTTP route `/v1/envelopes` is a **logical contract**, not a direct br
 
 See [Optimized Database Design](./14_Optimized_Database_Design.md) for SQL examples and migration restrictions.
 
-## 7. Compatibility and rollout
+## 8. Compatibility and rollout
 
 - Keep legacy endpoints for existing demo and message migration during transition, behind isolation/feature flags where appropriate.
 - Inventory the actual Supabase schema before writing migrations; the committed SQL is currently inconsistent with the client contract.
