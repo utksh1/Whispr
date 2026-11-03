@@ -15,60 +15,66 @@ A strict online-only delivery mode can be evaluated later, but cannot replace of
 - These paths are not yet unified. Current encryption uses static browser P-256 ECDH, HKDF-SHA256 and AES-GCM; secure ratcheting and multi-device fanout are not implemented.
 - Existing SQL migrations and application table expectations require reconciliation before deploying a fresh environment.
 
-## Target logical architecture
+## Target logical architecture — self-hosted Whispr
 
 ```mermaid
 flowchart TB
-  subgraph A["Client A — trusted endpoint"]
-    AUI["Chat UI"]
-    ACR["Key manager + reviewed E2EE protocol"]
-    ADB[("Encrypted local message DB")]
-    AO["Durable outbox / retry engine"]
-    AUI --> ACR
-    ACR <--> ADB
-    ACR <--> AO
+  subgraph S["Client device A: trusted endpoint"]
+    UI["Chat UI"]
+    CR["Reviewed E2EE + device key manager"]
+    DB[("Protected client-local conversation DB")]
+    OUT["Durable encrypted outbox"]
+    UI --> CR
+    CR <--> DB
+    CR <--> OUT
   end
-  subgraph B["Modular backend — untrusted for content and identity claims"]
-    AUTH["Account authentication"]
-    DIR["Device / public-key directory"]
-    DEL["Per-device delivery mailbox API"]
-    RT["Realtime notification gateway"]
-    MED["Encrypted media API"]
+  EDGE["TLS ingress / rate limits"]
+  IDP["Self-hosted OIDC identity provider"]
+  subgraph APP["Whispr-owned modular backend (initially one deployment)"]
+    AUTH["Auth Controller: validate OIDC / map account"]
+    DEV["Device Controller: enroll / revoke"]
+    KEYS["Key Controller: signed device / prekey directory"]
+    MAIL["Mailbox Controller: per-device encrypted envelopes + ACK"]
+    RT["Realtime Controller: WebSocket wake-up hints"]
+    MED["Media Controller: scoped ciphertext transfers"]
+    REC["Recovery Controller: opaque E2EE backup"]
+    WORK["Workers: transactional outbox / TTL / cleanup"]
   end
-  subgraph D["Backend infrastructure"]
-    PG[("PostgreSQL: metadata, prekeys, pending envelopes")]
-    OBJ[("Private object storage: ciphertext blobs")]
+  PG[("Self-managed PostgreSQL: account mapping, pending ciphertext, dedup, outbox")]
+  CACHE[("Optional Redis: presence, safe public cache, routing")]
+  OBJ[("Private S3-compatible object storage: encrypted blobs")]
+  subgraph R["Client device B: trusted endpoint"]
+    IN["Fetch/dedupe inbox"]
+    DEC["Verify peer + decrypt"]
+    RDB[("Protected client-local conversation DB")]
+    IN --> DEC --> RDB
   end
-  subgraph C["Client B — trusted endpoint"]
-    CI["Encrypted inbox / validator"]
-    CC["Decrypt + identity checks"]
-    CDB[("Encrypted local message DB")]
-    CI --> CC --> CDB
-  end
-  AO -->|"Authenticated ciphertext envelope"| DEL
-  ACR <--> DIR
-  AUTH <--> PG
-  DIR <--> PG
-  DEL <--> PG
-  DEL -->|"New envelope hint"| RT
-  RT --> CI
-  CI <-->|"Fetch pending / ACK after durable save"| DEL
-  ACR -->|"Client-encrypted chunks"| MED
-  MED <--> OBJ
+  OUT --> EDGE
+  EDGE --> AUTH & DEV & KEYS & MAIL & RT & MED & REC
+  AUTH <--> IDP
+  AUTH & DEV & KEYS & MAIL & MED & REC & WORK --> PG
+  RT <--> CACHE
+  MAIL --> WORK
+  RT -. "Mailbox available" .-> IN
+  IN <-->|"Authenticated fetch / ACK after durable save"| MAIL
+  CR -->|"Client-encrypted chunks"| OBJ
+  MED -->|"Authorize object capabilities"| OBJ
 ```
 
-The diagram depicts **logical components**, not separate deployable microservices. Start with one backend deployment containing modules for identity, mailbox, media and notifications; split only when usage and operational evidence warrants it. Supabase Auth and Postgres can be retained, but browser-direct message-table access must be replaced or tightly constrained by a stable delivery API/RLS contract.
+The diagram depicts **logical modules**, not independent microservices. Supabase is **not** part of the target runtime. Authentication uses a reviewed, self-hosted OIDC provider (Keycloak is an evaluated option), while Whispr controllers validate sessions and authorize device operations. PostgreSQL and object storage are self-operated. Reuse the current Express/Socket.IO code only after its auth/security issues are fixed.
+
+**No direct browser-to-PostgreSQL access in the target.** The app calls a versioned Whispr HTTP API and authenticated realtime gateway. Redis is non-authoritative; loss of wake-up notifications is repaired by mailbox fetch on reconnect. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md) for controller ownership and safe cutover.
 
 ## Responsibilities and trust boundaries
 
 | Component | Must do | Must not do |
 | --- | --- | --- |
 | Web client | Encrypt/decrypt, maintain encrypted history, durable outbox, verify peer identity, apply message state | Upload plaintext, export plaintext private keys into ordinary local storage |
-| Auth + device directory | Authenticate accounts, register devices, publish signed key bundles, enforce device revocation | Assert an unverified key is the real user's identity |
+| Self-hosted OIDC + Whispr Auth/Device Controllers | Authenticate accounts, map trusted OIDC identities to local account UUIDs, register/revoke devices | Roll custom password/OAuth cryptography or equate account login with E2EE identity verification |
 | Delivery mailbox | Persist only pending per-device encrypted envelopes, deduplicate, expire, authenticate fetch/ACK | Preserve a permanent server-side conversation transcript |
 | Media service | Accept encrypted chunks, enforce quota, return scoped object capabilities, expire blobs | Obtain plaintext files or file encryption keys |
 | Realtime gateway | Send wake-up hints and trigger mailbox fetch | Be the sole delivery mechanism or be treated as a durable queue |
-| PostgreSQL | Hold accounts, devices, key-bundle metadata, pending delivery envelopes, limited audit state | Contain plaintext chat history or permanent delivered-message archives |
+| Self-managed PostgreSQL | Hold local account/OIDC mapping, devices, public key bundles, pending envelopes, dedup ledger, notification outbox | Contain IdP passwords, plaintext history or permanent delivered-message archives |
 | Local DB | Persist messages, attachments, ratchet state and delivery cursors | Assume browser storage is immune to XSS or eviction |
 
 ## Text message lifecycle
@@ -118,6 +124,12 @@ Cache invalidation, authorization, short-lived public-key directory entries, TTL
 ## Non-goals for the first iteration
 
 No Kafka, Kubernetes, distributed microservice deployment, custom ratchet implementation, group protocol, voice/video calling, or server-side searchable chat index. First make one-to-one text + encrypted file delivery reliable and auditable.
+
+## Production ownership and migration boundaries
+
+The Whispr deployment operates its own backend modules, PostgreSQL, self-hosted OIDC provider and private object store. The identity provider retains credential/MFA secrets; Whispr keeps only validated identity mappings and device access policies. Protect internal database, cache and object-store networks; use service-scoped credentials, TLS, audited migrations, backups and tested restores.
+
+The current Supabase-based `/app` and separate Express `/demo` remain **legacy implementation surfaces**, not a permitted long-term split. Replace them through additive migrations and client dual-read; verify old ciphertext/key backup recovery before disabling Supabase. Keep the legacy Supabase schema as evidence until retirement. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
 
 ## Required implementation proof
 
