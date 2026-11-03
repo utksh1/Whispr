@@ -137,7 +137,7 @@ Use strict tenant/device RLS or equivalent backend authorization; explicit preke
 
 See [Scalability and Caching](./13_Scalability_and_Caching.md) for cache keys/TTLs and operational failure tests.
 
-## 6. Compatibility and rollout
+## 7. Compatibility and rollout
 
 - Keep legacy endpoints for existing demo and message migration during transition, behind isolation/feature flags where appropriate.
 - Inventory the actual Supabase schema before writing migrations; the committed SQL is currently inconsistent with the client contract.
