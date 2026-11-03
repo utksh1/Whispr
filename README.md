@@ -36,6 +36,16 @@ The target also includes reviewed ratcheting one-to-one encryption, key verifica
 
 This is a **modular monolith first** approach: retain the Next.js UI, Supabase Auth and PostgreSQL while replacing storage and delivery contracts. No Kubernetes, Kafka or broad rewrite is necessary to start.
 
+## Scale and caching direction (target, NOT implemented)
+
+Whispr keeps a **three-tier responsibility split**: encrypted client-local history; a durable PostgreSQL mailbox for **pending** ciphertext; and private object storage for encrypted attachments. Optional **Redis** accelerates allowlisted public metadata, ephemeral device presence, gateway routing and isolated abuse counters. Redis or WebSocket Pub/Sub is **never** the only copy of a pending message.
+
+Deploy the backend as a **modular monolith first**, with stateless APIs and realtime gateways ready for horizontal scaling. Use a transactional notification outbox, device-scoped idempotent messages, reconnect mailbox catch-up, and backpressure when DB/queue capacity is exhausted. CDN use is limited to immutable static assets and authorized encrypted media; plaintext, secrets and private profile fields never enter shared caches.
+
+**Large-scale work is phased:** indexes/expiry + performance metrics first; Redis when multi-gateway coordination is needed; PostgreSQL partitions, Kafka and multi-region home-region routing only after representative load tests prove value.
+
+See [Scalability, Caching and Data Lifecycle](./Docs/13_Scalability_and_Caching.md) for the detailed design and proposed SLOs (none measured or deployed yet).
+
 ## Setup for current code
 
 ### Web client
