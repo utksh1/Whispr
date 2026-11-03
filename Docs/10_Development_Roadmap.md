@@ -50,6 +50,33 @@ Failure injection: crash between session advancement and disk commit, crash befo
 
 No "100% secure", "fully merged" or "production-ready" claim without verified evidence and a separate security review.
 
+## Scalability, caching and operational acceptance (part of the existing work)
+
+Integrate the following into the **existing ordered PR plan**; they do not require a parallel release or a separate platform team:
+
+| Work package | Additional acceptance criteria |
+| --- | --- |
+| 03 — DB contract | Real RLS tests, device-scoped envelope authorization, keyset indexes, idempotency, TTL/cleanup plan and partitioning decision record |
+| 04 — Local persistence | RAM view-cache bounds, encrypted IndexedDB/OPFS store, quota/eviction handling, safe recovery and crash-atomic session/outbox commits |
+| 07 — Delivery mailbox | PostgreSQL transactionally persisted envelope + event-outbox, at-least-once wake-up, retry/ACK state machine, expiry and backlog alerts |
+| 08 — Offline sync | Reconnect catch-up independent of WebSocket events, dedup after crashes, gateway draining, throttling/backoff and loss-of-Redis chaos test |
+| 09 — Media | Direct client-encrypted chunk transfers, upload concurrency quota, scoped signed URLs, CDN cache authorization, orphan cleanup and media TTL policy |
+| 12 — Release | Load tests with peak envelope/device fanout, queue age and ACK latency, browser storage loss, Redis outage, malicious public-key cache, gateway restart and DB overload |
+
+### Cache implementation sequence
+
+**Design now:** cache allowlists, TTL candidates, invalidation/revocation rules, presence and rate-limit semantics, and failure modes.
+
+**Implement when needed:** Redis for multi-gateway routing/presence or demonstrated metadata cache gains; keep pending ciphertext in PostgreSQL. Treat rate-limit counters as security controls with isolation from general cache eviction.
+
+**Defer until measured:** table partitioning, more than one regional mailbox writer, Kafka, large shared CDN for encrypted media and multi-region active-active deployments.
+
+### Proposed performance SLOs (not currently measured)
+
+Mailbox acceptance p95 below 250 ms and online recipient delivery p95 below 2 seconds for an agreed load profile; mailbox API 99.9% monthly target; zero logical duplicate user messages under replay/crash tests; bounded pending queue age, delivery retries and expiry-worker backlog. Validate via reproducible load/chaos tests before making release claims.
+
+Implementation-level details and failure matrix: [Scalability and Caching](./13_Scalability_and_Caching.md).
+
 ## Explicitly deferred
 
 Group chats/MLS, calls, federation, large-scale microservices, optional social/discovery features. Keep existing `/demo` isolated as an educational harness while `/app` becomes the single intended product implementation.
