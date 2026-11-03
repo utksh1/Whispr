@@ -21,6 +21,12 @@
 
 **Never** enable public privileged `/api/admin` routes or deploy tamper/admin demo features as a production capability. Current privileged Next.js admin routes are missing normal authorization checks; fix/isolate them before any public deployment. Avoid real user accounts or production message history in demos.
 
+## Self-hosted migration demonstration (PLANNED, NOT AVAILABLE)
+
+A release-readiness demo should use a reviewed self-hosted OIDC provider, Whispr Auth/Device/Mailbox/Media controllers and private PostgreSQL/object storage rather than Supabase or the demo JWT issuer. Demonstrate proof-based legacy account linking, old-password-derived keyring backup restoration/rekey, new-device pairing and client-local encrypted history import. Simulate a revoked device, Redis outage, ciphertext expiry and object-store failure.
+
+**The present `/demo` does not prove any of these capabilities**; it remains a separate legacy harness. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
 ## Future acceptance demo (PLANNED)
 
 The same Whispr product should later demonstrate:
