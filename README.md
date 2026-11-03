@@ -1,86 +1,44 @@
 # Whispr
 
-**Secure, end-to-end encrypted communication for a zero-trust backend model.**
+**End-to-end encrypted messaging, redesigned incrementally around local-first privacy.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub stars](https://img.shields.io/github/stars/utksh1/Whispr.svg?style=social)](https://github.com/utksh1/Whispr)
 
-Whispr is an end-to-end encrypted (E2EE) messaging platform designed on the principle of **Zero Trust**. The backend serves only as a blind relay, ensuring that even if the server is fully compromised, user conversations remain private and unreadable.
+Whispr is the **same existing application and repository**. We're improving its architecture in place rather than launching a separate "2.0" product.
 
----
+## What works today
 
-## What Whispr Is
+| Surface | Implementation today | Limitation |
+| --- | --- | --- |
+| `/app` | Next.js/React, Supabase Auth, browser ECDH P-256 + HKDF + AES-GCM, Supabase Postgres encrypted message history, Realtime | Server keeps delivered ciphertext; browser exports private keys into `localStorage`; key verification and local encrypted history are not complete |
+| `/demo` | Separate Next.js two-client demo using Express/Socket.IO and JWT authentication, repository-backed encrypted messages | Separate identity/storage system; demo tamper/admin tools must not be exposed as production behavior |
+| Backend | Express/Socket.IO for demo, plus direct browser-to-Supabase product access | Not yet one unified durable per-device encrypted-delivery protocol |
 
-Whispr is an end-to-end encrypted messaging project designed around a simple assumption: the backend may fail, leak, or be compromised, and user privacy should still hold.
+**Security notice:** The current prototype is **not production-ready**. A compromised server/key directory, web origin, or endpoint may defeat some desired guarantees. The current demo JWT config includes a predictable secret fallback; some admin features lack authentication; database migrations do not fully match client queries. See [Threat Model](./Docs/06_Threat_Model.md).
 
-The repository currently contains:
-
-- a `client/` Next.js application
-- a `server/` Express and Socket.IO service
-- a `Docs/` directory describing the target architecture, security model, and roadmap
-
-Current implemented surfaces:
-
-- `/app` authenticated single-user chat flow
-- `/demo` dual-client authenticated demo harness
-
-Service-specific setup:
-
-- [`client/README.md`](./client/README.md)
-- [`server/README.md`](./server/README.md)
-
-Some documentation describes the intended system design beyond what is already implemented in code. That distinction is deliberate and important for contributors.
-
-## System Architecture
-
-Whispr uses a decoupled architecture where all cryptographic operations are offloaded to the client.
+## Architecture direction (target, NOT implemented)
 
 ```mermaid
-graph TD
-    subgraph "Client A (Sender)"
-        SA[Plaintext Message] --> SB[Local Encryption]
-        SB --> SC[Encrypted Payload]
-    end
-
-    subgraph "Whispr Gateway (Untrusted)"
-        GW[Node.js / Socket.IO]
-        DB[(PostgreSQL)]
-        GW --- DB
-    end
-
-    subgraph "Client B (Receiver)"
-        RE1[Encrypted Payload] --> RE2[Local Decryption]
-        RE2 --> RE3[Plaintext Message]
-    end
-
-    SC -- Secure WebSocket --> GW
-    GW -- Push Notification / Sync --> RE1
+flowchart LR
+  A["Sender: E2EE + local encrypted DB + outbox"]
+  Q["Authenticated temporary per-device ciphertext mailbox"]
+  B["Receiver: verify/decrypt + local encrypted DB"]
+  M["Private temporary ciphertext media storage"]
+  A -->|"Opaque encrypted envelope"| Q
+  Q -->|"Fetch, ACK after durable save"| B
+  A -->|"Encrypted attachment"| M
+  M -->|"Encrypted download"| B
 ```
 
----
+**Permanent chat history belongs on endpoints.** The backend still temporarily queues ciphertext so offline devices can receive messages, and temporarily stores encrypted media objects. Acknowledged/expired queued ciphertext is deleted under explicit retention rules. Realtime events are wake-up hints rather than the durable source of truth.
 
-## Design Goals
+The target also includes reviewed ratcheting one-to-one encryption, key verification, per-device identity, local-only search, encrypted media sharing, separate recovery secrets and safe migration of legacy chat history.
 
-- Client-side encryption and decryption
-- Ciphertext-only message storage on the backend
-- Secure public key distribution for one-to-one messaging
-- Realtime encrypted message delivery
-- A design that remains meaningful under backend compromise
+This is a **modular monolith first** approach: retain the Next.js UI, Supabase Auth and PostgreSQL while replacing storage and delivery contracts. No Kubernetes, Kafka or broad rewrite is necessary to start.
 
----
+## Setup for current code
 
-## Current Stack
-
-| Layer | Technology |
-| :--- | :--- |
-| **Frontend** | Next.js, React, TypeScript, Tailwind CSS |
-| **Backend** | Node.js, Express, Socket.IO, Zod |
-| **Database** | In-memory repository adapter today, Postgres adapter planned |
-| **Security Direction** | Web Crypto API MVP using browser ECDH P-256 + AES-GCM, with stronger primitive upgrades planned |
-
-## Local Development
-
-### Client
+### Web client
 
 ```bash
 cd client
@@ -88,7 +46,9 @@ npm install
 npm run dev
 ```
 
-### Server
+Create `client/.env.local` with the Supabase public URL/publishable key and any needed API URL. See [client README](./client/README.md) and [Supabase setup](./Docs/10_Supabase_Setup.md). **No `client/.env.example` is currently tracked.**
+
+### Demo API
 
 ```bash
 cd server
@@ -96,59 +56,25 @@ npm install
 npm start
 ```
 
-Server health check:
+`server/.env.example` is provided; copy it to `server/.env` and use a **unique strong `JWT_SECRET`** before exposing any authenticated endpoint. Disable demo tools outside isolated development. Server health: `http://localhost:4000/health`. Read [server README](./server/README.md).
 
-```bash
-curl http://localhost:4000/health
-```
+## Documentation — updated in place
 
-Local env setup:
+Start at [Documentation Index](./Docs/README.md). Key files:
 
-- `client/.env.example` defines `NEXT_PUBLIC_API_URL`
-- `client/.env.example` also includes `NEXT_PUBLIC_DISABLE_REALTIME` for Vercel-hosted polling mode
-- `server/.env.example` defines port, client origin, JWT secret, token TTL, demo tools, storage driver, database URL, and realtime toggle
+- [System Architecture](./Docs/04_System_Architecture.md) — current and target trust boundaries
+- [Cryptography](./Docs/05_Cryptography_Security_Flow.md) — current P-256/AES-GCM and future reviewed protocol
+- [Threat Model](./Docs/06_Threat_Model.md) — what E2EE does and **does not** guarantee
+- [Database Design](./Docs/08_Database_Design.md) — local history, server mailbox, migration safety
+- [API Design](./Docs/09_API_Design.md) — current endpoints vs proposed mailbox/media API
+- [Roadmap](./Docs/10_Development_Roadmap.md) — ordered implementation PRs and release gates
 
----
+Contributing: [CONTRIBUTING.md](./CONTRIBUTING.md). **Target documentation is not evidence of completed code.**
 
-## Documentation
+## Privacy promise (bounded)
 
-The [`Docs/`](./Docs) folder contains the project design set:
-
-Start with [`Docs/README.md`](./Docs/README.md) for the document map and documentation rules.
-
-- [**Project Overview**](./Docs/01_Project_Overview.md)
-- [**Problem Statement**](./Docs/02_Problem_Statement.md)
-- [**Core Features**](./Docs/03_Core_Features.md)
-- [**System Architecture**](./Docs/04_System_Architecture.md)
-- [**Cryptography and Security Flow**](./Docs/05_Cryptography_Security_Flow.md)
-- [**Threat Model**](./Docs/06_Threat_Model.md)
-- [**Tech Stack**](./Docs/07_Tech_Stack.md)
-- [**Database Design**](./Docs/08_Database_Design.md)
-- [**API Design**](./Docs/09_API_Design.md)
-- [**Development Roadmap**](./Docs/10_Development_Roadmap.md)
-- [**Demo Flow**](./Docs/11_Demo_Flow.md)
-- [**Pitch Notes**](./Docs/12_Pitch_Notes.md)
-
-## Contributing
-
-Contributor guidance lives in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
-
-Use it for:
-
-- local setup
-- development expectations
-- validation steps
-- pull request standards
-- documentation update rules
-
----
-
-## Vision
-
-Most messaging systems rely on backend trust. Whispr is built on a different assumption: **the backend may fail, leak, or be compromised.** User privacy should still hold.
-
----
+A database dump should not reveal chat plaintext when endpoints and keys are secure. Nevertheless, the service sees routing and timing metadata; a malicious directory can substitute keys without verification; a hostile browser-delivered script can read endpoint data. We will document these limits rather than claiming unconditional protection from every backend compromise.
 
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+MIT — see [LICENSE](./LICENSE).
