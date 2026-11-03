@@ -34,7 +34,7 @@ See [Scalability and Caching](./13_Scalability_and_Caching.md). These capabiliti
 
 ## Platform ownership decision
 
-The **target Whispr platform is self-hosted**, not Supabase-backed. Retain Next.js and useful hardened Express/Socket.IO components, but replace browser-direct Supabase Auth/Postgres/Realtime/Storage integration with a Whispr-owned authenticated API, reviewed self-hosted OIDC provider, self-managed PostgreSQL, private S3-compatible encrypted-object storage and optional Redis. The OIDC provider owns login credentials; backend controllers own account/device/mailbox/media authorization; clients own history and E2EE keys.
+The **target Whispr platform is self-hosted**, not Supabase-backed. Retain Next.js and useful hardened Express/Socket.IO components, but replace browser-direct Supabase Auth/Postgres/Realtime/Storage integration with a Whispr-owned authenticated API, reviewed cloud-hosted OIDC provider, private cloud-managed PostgreSQL (or self-operated equivalent), private cloud encrypted-object storage and optional managed Redis. The OIDC provider owns login credentials; backend controllers own account/device/mailbox/media authorization; clients own history and E2EE keys.
 
 Keep the current Supabase-backed `/app` running only until verified account mapping, old key-backup recovery, client ciphertext import, safe cutover and rollback obligations are met. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
 
