@@ -58,6 +58,14 @@ Keep `server/supabase/migrations/` as legacy evidence and write approved target 
 
 Architecture reference: [Self-Hosted Backend and Supabase Exit](./Docs/15_Self_Hosted_Backend_and_Supabase_Exit.md).
 
+## Vercel + Render deployment and media contribution rules
+
+Use the **same Whispr repo**: Vercel deploys `client/`; Render deploys `server/` and the separately reviewed OIDC provider, with paid Render PostgreSQL for real users. These are **target services** and no deployment is implied by these docs. Enforce no plaintext in Vercel SSR/caches, no passwords or R2 keys in `NEXT_PUBLIC_*`, strict Render CORS/issuer validation and mailbox recovery after socket restarts.
+
+**Media is conditional:** a text-only MVP must run without any S3/R2/Blob credentials. Implement a media storage interface, disabled-by-default feature flag and contract tests. With attachments, prefer private Cloudflare R2 and per-object short-lived server-authorized signed URLs. Never commit real media credentials, make the bucket public, or persist shared media files in Render process storage. AWS S3 can be an adapter alternative, not required infrastructure.
+
+See [Vercel + Render + Optional R2](./Docs/17_Render_Vercel_R2_Deployment.md).
+
 ## Cache and scaling design reviews
 
 Any PR introducing Redis, shared edge caching, realtime fanout, partitioned mailbox storage or media transfer must document: authoritative owner of each record, cache allowlist and TTL, invalidation/revocation safety, per-tenant authorization, data retention, idempotency and ACK semantics, retry/backpressure behavior, and a concrete fault-injection test.
