@@ -36,6 +36,27 @@ Message plaintext; attachment plaintext; private device identity and session key
 
 E2EE does **not** hide all metadata. The service may learn which device accounts communicate, login IPs, delivery timing, payload sizes, media object sizes and online state. Minimize and document logs, data retention and analytics. Push notifications must not contain message plaintext or sensitive previews.
 
+## Cache, realtime and scale-specific security threats (target)
+
+| Threat | Impact | Required defense |
+| --- | --- | --- |
+| Redis outage or Pub/Sub hint loss | Users appear offline; realtime wake-up lost | PostgreSQL authoritative mailbox, transactional notification outbox, reconnect fetch |
+| Redis eviction disables rate limits | Brute force / send spam | Separate or reserved security-state policy; conservative fallback or fail closed for high-risk actions |
+| Cross-account metadata cache pollution | Profile/key information revealed | Explicit allowlists, scoped keys, auth before cache access, negative-cache design |
+| Stale cached device authorization | Revoked device continues receiving | Authoritative revocation/epoch checks; bound capabilities and client identity verification |
+| CDN caching wrong auth key/URL | Ciphertext access across users | Private origin, scoped short-lived URLs, correct cache key/vary rules, media authorization tests |
+| CDN retains ciphertext after origin delete | Retention promise violated | CDN purge/expiry coordination, policy disclosure, no instant-erasure claims |
+| Gateway reconnect storm | Overload and message delay | Bounded per-device backoff+jitter, admission control, gateway draining, queue SLO alerts |
+| DB connection/queue exhaustion | Missed or falsely acknowledged messages | Durable commit before accepted, backpressure 429/503, quotas and circuit breakers |
+| Region split-brain during failover | Duplicate/contradictory ACK, deletion, revocation | One authoritative home writer per device and fenced failover |
+| Telemetry contains contact graph | Privacy violation despite E2EE | Minimize IP/recipient identifiers, use redacted/aggregated metrics, bounded logs |
+
+**Never cache** message plaintext, recovery material, authentication bearer tokens, private device keys or plaintext previews in Redis/CDNs/shared HTTP/Service Worker caches. Encrypted local IndexedDB/OPFS records are the user's history, not disposable relay caches; browser origin compromise and storage eviction remain threats.
+
+Caching key bundles for 30–120 seconds is a **candidate operational TTL**, never a substitute for user-verifiable identity binding. Realtime presence is approximate and must not be represented as reliable user intent or guaranteed availability.
+
+See [Scalability and Caching](./13_Scalability_and_Caching.md).
+
 ## Out of scope for initial implementation
 
 Anonymity against global network observers, compromised end-user devices, guaranteed deletion after recipient download, anti-screen-capture promises, protection against a fully compromised browser JavaScript origin, and sophisticated traffic analysis defenses.
