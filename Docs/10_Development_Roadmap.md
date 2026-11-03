@@ -71,6 +71,16 @@ Within the existing delivery PR sequence, add a reviewed IaC/deployment profile,
 
 Detailed design: [Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md).
 
+## Preferred Vercel + Render deployment and optional R2 rollout (TARGET)
+
+Within the existing work packages, make **Vercel** the intended `client/` host and **Render** the intended `server/` host for the API + Socket.IO gateway and reviewed self-hosted OIDC service. Choose **paid Render PostgreSQL** for real users; run reliable mailbox/notification/expiry workers, initially co-located if safe and later as a dedicated Render Background Worker. Use **Render Key Value only if necessary** for gateway coordination, presence or isolated abuse controls.
+
+**Do not make Cloudflare R2/S3 a P0 prerequisite.** Text-only E2EE delivery works with client local DB + Render API + PostgreSQL and OIDC. Implement a media storage adapter and disabled-by-default feature flag; enable **private Cloudflare R2** only in the attachment work package with client-encrypted chunk uploads, scoped presigned URLs, strict R2 CORS, quota, expiry and orphan cleanup. **AWS S3 is optional**, not the mandated vendor.
+
+Add deployment acceptance tests for Vercel Root Directory `client/`, Render `server/` health and websocket reconnect, strict frontend/API/OIDC origin/redirect allowlists, no secrets in `NEXT_PUBLIC_*`, paid durable database backups, Render free sleep simulation, R2 public-access rejection, outbox retry and ability to disable media without breaking text messages.
+
+See [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md). This does not deploy or provision services.
+
 ## Testing and CI
 
 Unit: envelope validation, crypto test vectors, backup errors, local DB and retention.
