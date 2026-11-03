@@ -124,6 +124,14 @@ Use least-privilege Redis credentials, encrypted connections, restricted network
 | CDN cache unavailable | Fetch authorized encrypted object from private origin |
 | Origin ciphertext deleted | Invalidate/revoke capabilities and purge CDN where available; disclose that retention/deletion is not instantaneous |
 
+### Optimized physical queue decision
+
+Keep the logical per-device mailbox API but implement it with **three narrow physical tables**, not one permanent chat transcript: `delivery_keys` (small idempotency/terminal receipt ledger), `pending_envelopes` (ciphertext only while pending) and `mailbox_events` (transactional wake-up outbox). Delete the ciphertext payload on ACK/expiry while keeping a bounded terminal ledger for safe sender retries. Do not update SQL for every WebSocket send attempt.
+
+The inbox index is `(recipient_device_id, created_at, envelope_id)`, with a separate expiry scan and ready-event worker index. The timestamp keyset cursor is only for **a single pending-mailbox sweep**: it does not represent commit order; redo an inbox scan on reconnect and periodically, with client deduplication. Keep the **dedup window longer than the permitted sender retry horizon** and ensure account/device authorization for conflicts and terminal statuses.
+
+A representative table/constraint design, enqueue/ACK races and client-local transaction strategy are in [Optimized Database Design](./14_Optimized_Database_Design.md).
+
 ## 5. PostgreSQL physical scalability
 
 **Logical mailbox row fields** (proposed; exact SQL requires an approved migration):
