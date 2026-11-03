@@ -63,6 +63,16 @@ The SQL actually tracked in this repo is at:
 
 See [Data Design](./08_Database_Design.md), [API Design](./09_API_Design.md), [Roadmap](./10_Development_Roadmap.md).
 
+## Scalability and caching deployment considerations (TARGET)
+
+The proposed mailbox is **not** yet a tracked Supabase table. Before adding an optional Redis cache, implement authenticated device-scoped PostgreSQL envelope/ACK contracts, RLS, a transactional notification outbox, keyset indexes and bounded expiry workers. Avoid caching sensitive Supabase auth or service-role material.
+
+When gateway replicas require cross-instance coordination, Redis may hold ephemeral presence and wake-up routing. If Redis is unavailable, **authorized PostgreSQL mailbox polling/fetch must still work**. Redis Pub/Sub is not a durable queue; do not make RLS/authorization depend on cache presence.
+
+Encrypted media can use a private storage bucket and authorized short-lived transfer URLs; the object store/CDN sees ciphertext bytes only. CDN cache keys must not authorize access across accounts. Plan orphan-upload and expiry cleanup separately from mailbox retention.
+
+Supabase Realtime quotas, database connection pools, migration consistency and available RLS policies must be verified against the actual deployed plan before scaling. Cache TTLs and performance goals are proposed in [Scalability and Caching](./13_Scalability_and_Caching.md), not deployed settings.
+
 ## Demo-only and privileged tooling
 
 The Next.js `/api/admin` route can operate with a Supabase service-role client and currently lacks user authorization checks; `ENABLE_DEMO_ADMIN` must never be enabled in a public production deployment. Remove/isolate this path as part of the security work. The Express demo tamper route is likewise not a production capability.
