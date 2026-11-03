@@ -21,7 +21,7 @@
 | 04 | **Encrypted local persistence** | IndexedDB-backed local repository and safe key boundary; outbox, inbox, migration checkpoints; eviction/crash tests |
 | 05 | **Self-hosted Auth + device identity** | Evaluate/deploy a reviewed self-hosted OIDC provider, implement token verification/account mapping, step-up device pairing, signed key bundles, warnings and independent recovery flow |
 | 06 | **Reviewed E2EE session integration** | Authenticated prekeys/ratchet, per-device sessions, replay/out-of-order test vectors; atomic state commits |
-| 07 | **Whispr mailbox controllers** | Own REST controllers/repositories and self-managed PostgreSQL pending ciphertext, stable IDs, validated TTL, ACK, transactional notification outbox and expiry cleanup |
+| 07 | **Whispr mailbox controllers** | Own REST controllers/repositories and private Whispr PostgreSQL (cloud-managed acceptable) pending ciphertext, stable IDs, validated TTL, ACK, transactional notification outbox and expiry cleanup |
 | 08 | **Offline sync engine** | Retry/backoff, reconnect/cursor, duplicate suppression and sender-delivery state machine |
 | 09 | **Self-hosted encrypted media** | Client encryption, chunk AEAD, quotas, private cloud object store or S3-compatible alternative, scoped capabilities, object cleanup and safe previews |
 | 10 | **Media UI + chat experience** | Image/document workflows first; video/voice second; local search and accurate delivery states |
