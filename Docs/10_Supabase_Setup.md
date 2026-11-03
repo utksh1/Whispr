@@ -73,6 +73,14 @@ Encrypted media can use a private storage bucket and authorized short-lived tran
 
 Supabase Realtime quotas, database connection pools, migration consistency and available RLS policies must be verified against the actual deployed plan before scaling. Cache TTLs and performance goals are proposed in [Scalability and Caching](./13_Scalability_and_Caching.md), not deployed settings.
 
+## Optimized database migration target (PLANNED, NOT APPLIED)
+
+The proposed physical mailbox separates **`delivery_keys` status/idempotency**, **`pending_envelopes` encrypted payload only** and **`mailbox_events` durable notification intent**, plus registered devices/prekeys and minimal media metadata. Do not add or remove tables in the live Supabase project until the six tracked migrations and current client queries have been reconciled.
+
+Treat browser-direct access differently from server-only queue APIs: service-role bypasses ordinary RLS, so backend device/account authorization is mandatory. The target also requires narrow indexes for per-device inbox and expiry, safe deleted-payload dedup tombstones, and periodic rescan (a timestamp keyset cursor is not a commit-order watermark).
+
+See [Optimized Database Design](./14_Optimized_Database_Design.md) for **illustrative, unexecuted** SQL and additive migration/recovery gates.
+
 ## Demo-only and privileged tooling
 
 The Next.js `/api/admin` route can operate with a Supabase service-role client and currently lacks user authorization checks; `ENABLE_DEMO_ADMIN` must never be enabled in a public production deployment. Remove/isolate this path as part of the security work. The Express demo tamper route is likewise not a production capability.
