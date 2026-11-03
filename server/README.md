@@ -1,133 +1,52 @@
 # Whispr Server
 
-This directory contains the Whispr backend service.
+Express/Socket.IO service used by the **`/demo`** route of the existing Whispr repository. The product `/app` currently talks directly to Supabase; the two paths are **not a single unified backend**.
 
-## Stack
+## Implemented demo stack
 
-- Node.js
-- Express
-- Socket.IO
-- Zod
-- Helmet
-- CORS
-- dotenv
-- in-memory repository adapters
-- Node test runner
+Node.js, Express, Socket.IO, Zod, Helmet, CORS, dotenv and repository adapters for **filesystem** (configured default), **memory** and **PostgreSQL**. The PostgreSQL adapter contains schema/runtime issues and should not be assumed production-ready.
 
-## Purpose
+## Current routes
 
-The server is the routing and coordination layer for Whispr.
+| Method | Route | Purpose |
+| --- | --- | --- |
+| POST | `/auth/register`, `/auth/login` | Demo account JWT issuance |
+| GET | `/auth/me` | Authenticated account |
+| PUT | `/me/public-key` | Active public key |
+| PUT/GET | `/me/private-key-backup` | Legacy encrypted keyring backup |
+| GET | `/users`, `/users/:username/public-key`, `/keys/:keyId` | Discovery and public key lookup |
+| GET/POST | `/conversations/:peerUsername/messages` | Server-retained demo ciphertext history |
+| POST | `/messages/:messageId/tamper` | **Demo-only** when enabled |
 
-Its long-term responsibilities include:
+OpenAPI: `http://localhost:4000/openapi.json`; Swagger UI: `http://localhost:4000/docs`. Socket.IO uses JWT auth at handshake and broadcasts encrypted message events.
 
-- authentication and session handling
-- public key distribution
-- encrypted message relay
-- ciphertext storage
-- offline message synchronization
-- delivery state updates
-
-Under the project trust model, the server is not trusted with message confidentiality.
-
-## Current State
-
-The backend now implements the MVP service contracts:
-
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /auth/me`
-- `PUT /me/public-key`
-- `GET /users`
-- `GET /users/:username/public-key`
-- `GET /conversations/:peerUsername/messages`
-- `POST /conversations/:peerUsername/messages`
-- `POST /messages/:messageId/tamper` when demo tools are enabled
-
-HTTP routes and Socket.IO connections are JWT-protected. The current persistence layer is in-memory behind repository interfaces, with a Postgres adapter stubbed for the next phase.
-
-## Development
-
-Install dependencies:
+## Start for isolated development
 
 ```bash
 npm install
-```
-
-Start the server:
-
-```bash
+cp .env.example .env
+# Edit .env: set a strong unique JWT_SECRET, disable demo tools when not testing them
 npm start
 ```
 
-By default, the server listens on `http://localhost:4000`.
+Health: `curl http://localhost:4000/health`.
 
-## Health Check
+**Warning:** `server/src/config.js` currently supplies a **predictable default `JWT_SECRET`** if unset; `server/.env.example` also has a placeholder secret and enables demo tools. Do **not** expose this server publicly until secrets are fail-closed and isolated demo capabilities are disabled.
 
-```bash
-curl http://localhost:4000/health
-```
+Supported configuration includes `PORT`, `CLIENT_ORIGIN`, `JWT_SECRET`, `TOKEN_TTL_SECONDS`, `ENABLE_DEMO_TOOLS`, `STORAGE_DRIVER`, `STORAGE_PATH`, `DATABASE_URL` and `DISABLE_REALTIME`. Confirm exact behavior in `src/config.js`, not just the example file.
 
-Expected response:
-
-```json
-{
-  "status": "ok",
-  "service": "Whispr Backend",
-  "storageDriver": "memory"
-}
-```
-
-## Swagger Docs
-
-Swagger UI is available at:
-
-```bash
-http://localhost:4000/docs
-```
-
-Raw OpenAPI JSON is available at:
-
-```bash
-http://localhost:4000/openapi.json
-```
-
-## Environment Variables
-
-The current server reads environment variables through `dotenv`.
-
-Supported variables:
-
-- `PORT`: optional port override
-- `CLIENT_ORIGIN`: allowed browser origin for CORS and Socket.IO
-- `JWT_SECRET`: signing secret for auth tokens
-- `TOKEN_TTL_SECONDS`: auth token lifetime
-- `ENABLE_DEMO_TOOLS`: enables ciphertext tamper route for the demo harness
-- `STORAGE_DRIVER`: `memory` today, `postgres` reserved for the next adapter phase
-- `DATABASE_URL`: Neon/Postgres connection string used when `STORAGE_DRIVER=postgres`
-- `DISABLE_REALTIME`: disables Socket.IO broadcast path and expects polling/manual refresh instead
-
-See `./.env.example` for a minimal example.
-
-## Tests
-
-Run the server integration test suite with:
+Tests:
 
 ```bash
 npm test
 ```
 
-## Development Notes
+Current automated tests do not establish secure end-to-end cryptographic sessions, real Supabase RLS or production retention guarantees.
 
-- Do not log plaintext messages, keys, or sensitive secrets.
-- Keep request validation strict as endpoints are added.
-- Preserve the zero-trust backend model.
-- Update `../Docs/09_API_Design.md` and related docs when backend behavior changes.
+## Target role (planned, NOT implemented)
 
-## Related Docs
+Evolve toward a modular backend hosting device directory/key bundles, authenticated pending **per-device encrypted mailboxes**, ACK/expiration, realtime wake-up and private ciphertext media object APIs. Long-term chat history and decryption remain on endpoint devices. Keep or retire `/demo` behind explicit isolation; do not treat this design as a shipped API.
 
-- `../README.md`
-- `../CONTRIBUTING.md`
-- `../Docs/README.md`
-- `../Docs/04_System_Architecture.md`
-- `../Docs/06_Threat_Model.md`
-- `../Docs/09_API_Design.md`
+Do not add a permanent server-side messages archive to the target architecture or advertise browser-independent identity verification without client key pinning.
+
+See [Architecture](../Docs/04_System_Architecture.md), [API](../Docs/09_API_Design.md), [Database](../Docs/08_Database_Design.md), [Roadmap](../Docs/10_Development_Roadmap.md).
