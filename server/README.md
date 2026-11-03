@@ -59,9 +59,15 @@ Read [Scalability and Caching](../Docs/13_Scalability_and_Caching.md) for propos
 
 Target modules in `server/src/modules/`: `auth` (self-hosted OIDC verification and stable account mapping), `devices` (enrollment/revocation), `keys` (signed public bundles/prekeys), `mailbox` (pending encrypted envelope API, idempotent ACK), `realtime` (Socket.IO hints), `media` (authorized encrypted file capabilities), `recovery` (opaque E2EE backups). `workers` handle transactional notification outbox, mailbox expiry and media cleanup.
 
-Target infrastructure: **private self-managed PostgreSQL** with `accounts`, verified `account_identities(issuer,subject)`, device/key tables, `delivery_keys` ledger, `pending_envelopes` ciphertext and `mailbox_events` outbox; self-hosted reviewed OIDC provider (Keycloak candidate), private S3-compatible storage and optional Redis. No target Supabase runtime and no direct browser DB access.
+Target infrastructure: **private cloud-managed or self-operated PostgreSQL** with `accounts`, verified `account_identities(issuer,subject)`, device/key tables, `delivery_keys` ledger, `pending_envelopes` ciphertext and `mailbox_events` outbox; self-hosted reviewed OIDC provider (Keycloak candidate), private cloud object storage or an S3-compatible alternative, with optional managed Redis. No target Supabase runtime and no direct browser DB access.
 
 Use Docker Compose for isolated dev, TLS/secret isolation and restore drills for production. These modules/paths are **planned**, not in the current codebase. See [Self-Hosted Backend and Supabase Exit](../Docs/15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
+## Cloud runtime option (TARGET / NOT DEPLOYED)
+
+Whispr-controlled Node.js controllers, Socket.IO gateways and workers can run on a cloud container platform (AWS ECS/Fargate is one example). A reviewed OIDC provider can run in its own protected cloud deployment. Private **cloud-managed PostgreSQL**, private ciphertext object storage (e.g. S3) and optional managed Redis are acceptable; Whispr still owns authentication policy, schema, device authorization and delivery protocol, and Supabase is not part of the future runtime.
+
+Use container/IaC reviews, private networking and IAM roles, TLS, secret management, database backup/restore drills, media capability tests, gateway reconnect catch-up and cost alerts. See [Cloud Hosting and Deployment](../Docs/16_Cloud_Hosting_and_Deployment.md).
 
 ## Target role (planned, NOT implemented)
 
