@@ -176,6 +176,16 @@ The public HTTP route `/v1/envelopes` is a **logical contract**, not a direct br
 
 See [Optimized Database Design](./14_Optimized_Database_Design.md) for SQL examples and migration restrictions.
 
+## Preferred Vercel + Render and optional R2 API deployment (TARGET)
+
+The Next.js frontend is **planned for Vercel**; Whispr's HTTP controllers and Socket.IO gateway run on an **always-on Render web service**. PostgreSQL is **paid Render PostgreSQL** for persistent pending ciphertext. A reviewed OIDC provider deployed separately on Render authenticates users. Browser code gets only public API/OIDC configuration; connection strings, private R2 credentials and OIDC server secrets stay on Render.
+
+**Text-only APIs must not require object storage.** The proposed `/v1/media` endpoints remain feature-gated until encrypted attachments ship. When enabled, the Media Controller authorizes object/size/TTL and returns short-lived **private Cloudflare R2 S3 presigned PUT/GET** capabilities. The browser transfers **only locally encrypted bytes** directly to R2. R2 CORS must allow exact Vercel app origins, proper methods and signed headers. An R2 URL is a bearer capability and must not be publicly logged or converted to a public bucket URL. Direct R2 S3 presigned links cannot simply use arbitrary custom media hostnames. AWS S3 or another provider is an adapter alternative, not required.
+
+Socket.IO hints are never reliable delivery, whether Render uses one gateway or multiple; reconnect initiates mailbox fetch and client dedup. Implement `429/503` backpressure, device-specific authorization and token/redirect/CORS policy.
+
+See [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md).
+
 ## 8. Supabase exit and API ownership
 
 Replace Supabase Auth/PostgREST/Realtime/Storage with Whispr-owned APIs, a self-hosted standards-based OIDC provider, the Whispr Socket.IO gateway and private S3-compatible ciphertext storage. **Do not treat Supabase IDs, session tokens or legacy Google OAuth identity fields as interchangeable with Whispr account UUIDs.** Link verified old identities safely, and recover legacy password-derived key backups before old login credentials change. Client local history and the new server mailbox are two separately migrated concerns.
