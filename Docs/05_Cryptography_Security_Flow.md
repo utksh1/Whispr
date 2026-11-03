@@ -62,6 +62,16 @@ A backup must be end-to-end encrypted **before upload**, authenticated and versi
 
 Generate independent random file key material client-side. Encrypt file chunks and a manifest with authenticated encryption, per-chunk unique nonce construction, authenticated ordering/index binding, final integrity verification and size/format caps. The E2EE chat envelope carries the wrapped key and opaque object reference; the object store never receives decryption material. Media previews are produced locally; never let the server derive thumbnails from plaintext.
 
+## Cryptographic cache boundaries and distributed delivery (TARGET)
+
+Signed public device-key bundles may be cached **briefly** for directory performance, but the client still verifies the identity binding, pinned fingerprint, key version and revocation/rotation policy. A Redis hit must never change an unverified directory key into a verified human identity. Cached authorization must not allow a revoked device to continue fetching envelopes.
+
+Do **not** cache plaintext messages, private/ratchet keys, session bearer tokens, backup secrets or decrypted media in Redis, shared HTTP/Service Worker caches, CDNs or generic backend logs. Client-side RAM may temporarily hold decrypted active-view data; the protected local database is durable endpoint history, not an evictable remote cache.
+
+Redis Pub/Sub and realtime delivery are merely wake-up hints. The authenticated client must fetch pending ciphertext from PostgreSQL-backed mailboxes after reconnect. Duplicate/reordered delivery must not roll back ratchet state or cause key/nonce reuse. Media CDN objects, if deployed, contain **ciphertext only** and are accessible through validated short-lived capabilities; decryption material arrives via an independent E2EE envelope.
+
+See [Scalability and Caching](./13_Scalability_and_Caching.md).
+
 ## Security boundaries and honest claims
 
 - A **database-only** breach should expose ciphertext and limited metadata, assuming strong local key security.
