@@ -1,60 +1,45 @@
 # Whispr Documentation
 
-This directory contains the design and planning documents for Whispr.
+These are the **existing project's canonical design docs**, updated in place to guide the local-first redesign. **There is no separate "2.0" version or docs directory.** Changes are incremental and must preserve safe migration of existing user data.
 
-## How To Read These Docs
+## Status language
 
-The docs in this folder are a mix of:
+- **Current / as-is:** behavior verified in the repository today.
+- **Target / proposed:** design decision or planned work; **not implemented**.
+- **Release gate:** validation required before declaring that capability production-ready.
 
-- product and problem framing
-- target architecture and API design
-- security model and threat assumptions
-- implementation roadmap
-- demo and pitch material
+At present, `/app` is a browser-direct Supabase encrypted-chat prototype with retained server ciphertext; `/demo` is a different Express/Socket.IO harness. The target is encrypted local conversation history, temporary per-device pending delivery, reviewed session cryptography, authenticated identity verification and client-encrypted attachments.
 
-Not every design described here is fully implemented in the current codebase.
+## Document index
 
-When a document describes intended behavior that does not yet exist in code, it should be written as a target design rather than as an already-shipped feature.
+| Document | Purpose |
+| --- | --- |
+| [01 — Project Overview](./01_Project_Overview.md) | Product vision, accurate limits and transition |
+| [02 — Problem Statement](./02_Problem_Statement.md) | Security/privacy outcomes and success criteria |
+| [03 — Core Features](./03_Core_Features.md) | P0/P1/P2 feature backlog, user promises and non-guarantees |
+| [04 — System Architecture](./04_System_Architecture.md) | Trust boundaries, local-first data flow, mailbox/media responsibilities |
+| [05 — Cryptography](./05_Cryptography_Security_Flow.md) | Current crypto vs reviewed protocol target, identity and backup lifecycle |
+| [06 — Threat Model](./06_Threat_Model.md) | Assets, attackers, browser/server limitations and release gates |
+| [07 — Tech Stack](./07_Tech_Stack.md) | Retained components vs prospective replacements |
+| [08 — Database Design](./08_Database_Design.md) | Current schema drift, server pending mailbox and local encrypted data |
+| [09 — API Design](./09_API_Design.md) | Existing APIs and explicitly proposed versioned mailbox/media contracts |
+| [10 — Development Roadmap](./10_Development_Roadmap.md) | Ordered PR work and validation gates |
+| [Supabase Setup](./10_Supabase_Setup.md) | Current auth, tracked SQL and safe target migration |
+| [11 — Demo Flow](./11_Demo_Flow.md) | Isolated demo and honest security demonstration |
+| [12 — Pitch Notes](./12_Pitch_Notes.md) | Claims grounded in current and intended capabilities |
 
-## Document Map
+## Core decisions
 
-- `01_Project_Overview.md`: project summary, vision, and value proposition
-- `02_Problem_Statement.md`: security and privacy problem definition
-- `03_Core_Features.md`: must-have, good-to-have, and demo-facing features
-- `04_System_Architecture.md`: target system structure and trust boundaries
-- `05_Cryptography_Security_Flow.md`: intended cryptographic flow and trust assumptions
-- `06_Threat_Model.md`: attacker capabilities, out-of-scope items, and mitigations
-- `07_Tech_Stack.md`: selected technical direction
-- `08_Database_Design.md`: target storage schema and design principle
-- `09_API_Design.md`: target backend API and realtime events
-- `10_Development_Roadmap.md`: phased implementation plan
-- `11_Demo_Flow.md`: suggested product demonstration sequence
-- `12_Pitch_Notes.md`: presentation and judging narrative
+1. **Client-owned history:** protect messages in device-local storage; server retains only encrypted undelivered envelopes and temporary encrypted blobs.
+2. **Durable asynchronous transport:** queues, idempotent send, retry, per-device ACK *after local persistence*, expiry and reconnect handling.
+3. **Verified identity and reviewed protocol:** current AES-GCM ciphertext authentication is not proof of correspondent identity; avoid custom ratcheting protocols.
+4. **Separate recovery:** account password is not a backup decryption key; encrypt before upload and require explicit recovery UX.
+5. **Incremental migration:** reconcile real schema and preserve legacy ciphertext until imported/verified; no rewrite of the entire product on a separate branch.
 
-## Documentation Rules
+## Documentation update policy
 
-- Keep docs aligned with the codebase.
-- Mark planned or target behavior clearly.
-- Avoid presenting future work as already implemented.
-- Update linked documents together when changing architecture, crypto, storage, or API contracts.
-- Prefer technical precision in engineering docs.
-- Keep pitch-oriented language in pitch docs, not implementation docs.
+Update architecture, threat model, schema, API, client/server READMEs and tests together when behavior changes. Replace "target" labels only after code + negative security tests demonstrate a feature. Never describe proposed `/v1` endpoints as deployed. Keep historical docs for the demo honest about its distinct backend, insecure defaults and demonstration-only routes.
 
-## When To Update Docs
+## Before editing implementation
 
-Update the relevant file in this directory when changing:
-
-- trust assumptions
-- cryptographic design
-- message format
-- authentication behavior
-- database schema direction
-- API contracts
-- roadmap scope
-
-## Suggested Maintenance Flow
-
-1. Change code.
-2. Update the matching technical doc.
-3. Update `README.md` or `CONTRIBUTING.md` if contributor-facing behavior changed.
-4. Verify the docs still distinguish current implementation from target architecture.
+Read [Architecture](./04_System_Architecture.md) → [Threat Model](./06_Threat_Model.md) → [Data Design](./08_Database_Design.md) → [API Design](./09_API_Design.md) → [Roadmap](./10_Development_Roadmap.md). Document any unresolved decisions as ADRs **inside the existing docs tree when actually needed**; do not generate parallel version trees.
