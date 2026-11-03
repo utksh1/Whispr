@@ -29,10 +29,32 @@ Demo Socket.IO currently uses a JWT at connection and `message:receive` / `messa
 
 **Security blockers:** demo JWT accepts a predictable fallback when unset; privileged Next.js demo admin APIs may be enabled without authorization; demo tamper feature must be isolated. Neither should be exposed in production.
 
+## Target replacement: self-hosted Whispr controllers (NOT IMPLEMENTED)
+
+Whispr's production client will use **only the Whispr-controlled API and realtime gateway**, rather than the Supabase browser SDK or direct PostgREST table access. The backend is a Node.js/TypeScript modular monolith: `AuthController`, `DeviceController`, `KeyController`, `MailboxController`, `RealtimeController`, `MediaController` and `RecoveryController`, with separate workers for expiry and transactional notifications.
+
+**Authentication flow:** a reviewed self-hosted OIDC provider (Keycloak is a candidate) authenticates users. The Whispr Auth Controller validates trusted JWT issuer, audience, signature, expiry and JWKS, maps the verified `(issuer,subject)` to a stable local `account_id`, and authorizes each device-scoped request. Whispr **does not** issue its own weak fallback-secret production JWTs or implement password/OAuth flows from scratch.
+
+**Target auth/account interfaces (illustrative):**
+
+| Method | Proposed path | Contract |
+| --- | --- | --- |
+| GET | `/v1/me` | Authenticated Whispr account from verified OIDC identity mapping |
+| POST | `/v1/me/identity-links` | Step-up/verified identity link; no email-only auto merge |
+| GET | `/v1/me/devices` | Owned devices, cryptographic identity fingerprints and revocation state |
+| POST | `/v1/me/devices` | Authenticated new-device enrollment with pairing/step-up proof |
+| DELETE | `/v1/me/devices/:deviceId` | Revoke device; block future mailbox delivery/prekey access |
+
+The IdP owns password/MFA/reset pages and token issuance; product APIs own data authorization and E2EE device policies. Configure strict CORS, TLS, CSRF protection for cookie-backed operations, safe token storage and session revocation rules. A normal OIDC login is **not** proof that a new messaging device is legitimate.
+
+**Storage flow:** Whispr's API validates account/device ownership, queries self-managed PostgreSQL, and grants limited S3-compatible object-storage capabilities for *client-encrypted* media. Redis is optional for presence/cache; it is never authoritative for authorization or pending messages.
+
+**Current `/demo` authentication is a separate legacy test harness** and must not be rebranded as production auth. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
 ## 2. Target API principles
 
-1. Client owns long-term history; server stores only **pending encrypted envelopes**, never full delivered transcripts.
-2. Every request is authorized for a specific account and device. Senders cannot choose arbitrary `sender_id`; device identifiers must be bound to authenticated sessions.
+1. Client owns long-term history; **Whispr-controlled controllers backed by self-managed PostgreSQL** store only **pending encrypted envelopes**, never full delivered transcripts.
+2. Every request is authorized for a specific account and device by a **Whispr service/policy layer** after verifying OIDC identity and device proof. Senders cannot choose arbitrary `sender_id`; client-submitted account/device claims are not trusted.
 3. All routes are versioned (e.g. `/v1`), schema-validated and rate-limited. Use opaque message IDs and exact envelope size/TTL limits.
 4. HTTP queue persistence is durable; websocket/realtime events are **hints**, not delivery proof.
 5. Retries are idempotent. ACK is accepted **only after local durable persistence**, not merely receipt of a network packet.
@@ -150,11 +172,19 @@ The public HTTP route `/v1/envelopes` is a **logical contract**, not a direct br
 
 **ACK semantics:** authenticate the recipient device, lock/compare the matching ledger record, transition pending to delivered and delete ciphertext **in one transaction**. A repeated ACK must return the same terminal result; a sender's idempotent retry must not recreate deleted ciphertext. The dedup window is bounded; protocol-level replay resistance is still required.
 
-**Backend security:** Supabase service-role connections bypass ordinary RLS. Do not expose queue tables through broad browser grants. Authorize each sender-device, recipient-device fetch, ACK, and media object capability at the API boundary, and validate with adversarial tests.
+**Backend security:** Self-managed PostgreSQL is private to Whispr services and uses least-privilege roles, with optional RLS defense-in-depth. **OIDC claims must be validated and mapped** before every device-bound request; no broad browser database access. Authorize each sender-device, recipient-device fetch, ACK, and media object capability at the API boundary; validate with adversarial tests.
 
 See [Optimized Database Design](./14_Optimized_Database_Design.md) for SQL examples and migration restrictions.
 
-## 8. Compatibility and rollout
+## 8. Supabase exit and API ownership
+
+Replace Supabase Auth/PostgREST/Realtime/Storage with Whispr-owned APIs, a self-hosted standards-based OIDC provider, the Whispr Socket.IO gateway and private S3-compatible ciphertext storage. **Do not treat Supabase IDs, session tokens or legacy Google OAuth identity fields as interchangeable with Whispr account UUIDs.** Link verified old identities safely, and recover legacy password-derived key backups before old login credentials change. Client local history and the new server mailbox are two separately migrated concerns.
+
+The current direct browser Supabase queries are **legacy read/migration-only** during staged cutover; no direct database calls belong in the target client. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
+## 9. Compatibility and rollout
+
+
 
 - Keep legacy endpoints for existing demo and message migration during transition, behind isolation/feature flags where appropriate.
 - Inventory the actual Supabase schema before writing migrations; the committed SQL is currently inconsistent with the client contract.
