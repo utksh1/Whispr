@@ -1,90 +1,88 @@
-# Whispr — Supabase Setup and Schema Migration
+# Whispr — Legacy Supabase Setup and Decommissioning
 
-> **Status:** Setup for the **current** `/app` implementation, plus a clearly labeled **target** migration plan. The local-first architecture has **not** been deployed. These instructions remain part of the existing Whispr repo.
+> **LEGACY ONLY / MIGRATION REFERENCE.** The **existing `/app` currently depends on Supabase**, but the **target Whispr system is self-hosted and has no Supabase runtime dependency**. Keep these details solely to support current deployments, historical data export, recovery and rollback. Do not set up a new Supabase project for the future architecture. No live migration or deletion has been executed.
 
-## Current product integration
+## What is being replaced
 
-`/app` uses Supabase **Auth**, browser-direct **Postgres** reads/writes, and **Realtime** updates. The server currently retains encrypted `messages` rows; device-local permanent history and pending mailboxes are planned.
+| Legacy Supabase area | Current role | Whispr target |
+| --- | --- | --- |
+| Supabase Auth | `/app` email/password, Google OAuth and sessions | A **self-hosted, reviewed OIDC identity provider** (evaluate Keycloak or equivalent); Whispr Auth Controller verifies issuer/audience/JWKS and maps verified identities to local accounts |
+| PostgREST / browser-direct data | Browser reads/writes `profiles`, `user_keys`, `messages` and `private_key_backups` | Authenticated Whispr controllers and private self-managed PostgreSQL; no direct browser database access |
+| Supabase Realtime | Browser subscriptions on message rows | Whispr-managed Socket.IO/WebSocket wake-up hints + durable mailbox fetch |
+| Supabase Postgres | Auth-linked profiles, ciphertext-only permanent server history, keyring backups | Whispr accounts/device/prekey directory, **pending ciphertext only**, small dedup ledger and transactional notification outbox |
+| Supabase Storage (future option) | No complete media pipeline established in current product | Private self-hosted S3-compatible object store, client-encrypted files and scoped short-lived capabilities |
 
-The standalone Express/Socket.IO `/demo` path has separate authentication and storage contracts. Do not assume its JWT or schema is interchangeable with Supabase.
+See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md) and [Tech Stack](./07_Tech_Stack.md).
 
-## Environment
+## Legacy client configuration — for maintaining/migrating existing `/app` only
 
-Create `client/.env.local` (there is currently **no tracked `client/.env.example`**):
+The current client expects `client/.env.local` containing public Supabase configuration. These variables are **legacy** and are not part of the target client:
 
 ```dotenv
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_publishable_key
-NEXT_PUBLIC_SUPABASE_PROJECT_REF=your_project_ref
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_EXISTING_PROJECT.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=existing_publishable_key
+NEXT_PUBLIC_SUPABASE_PROJECT_REF=existing_project_ref
 NEXT_PUBLIC_API_URL=http://localhost:4000
 ```
 
-Only `NEXT_PUBLIC_*` variables belong in the browser bundle. For server-only privileged operations, use **server-only environment variables** and never expose service-role keys to the browser or logs.
+The current repo does not track `client/.env.example`. Only `NEXT_PUBLIC_*` values are publicly bundled. Never expose a service-role key or secret in the browser, source control, screenshots, demo tools, or migration logs.
 
-The older docs' absolute workstation links to `/Users/Utkarsh/.../supabase/whispr_schema.sql` and `supabase/mcp_config.example.json` are **not valid committed repository paths**. Do not rely on them.
+The old documentation's absolute machine-specific links to `/Users/Utkarsh/.../supabase/whispr_schema.sql` and `supabase/mcp_config.example.json` do **not** point to committed repository files. Use only reviewed tracked migrations as references.
 
-## Authentication setup
+## Historical Auth configuration (do not use as new-system guide)
 
-1. Configure site URL `http://localhost:3000` and exact deployed origin(s) in Supabase Auth.
-2. Add the callback `/app` where needed for Google OAuth.
-3. Enable email/password and, if required, Google provider. In production, use verified email confirmation and properly configured outbound email. Avoid disabling confirmation outside isolated local testing.
-4. Account login currently feeds the same password into the legacy encrypted private-key backup workflow. **This is a security issue to remove**, not a recommended configuration.
-5. Google OAuth on a fresh device does not provide a separate recovery-secret prompt today, so old keyring backups may be inaccessible.
+The existing product may require historical Supabase redirect URLs for local `http://localhost:3000` and `/app` OAuth callback; keep them working only until controlled cutover. If email confirmation or Google OAuth is involved in old-account recovery, use the real existing project and protect users from phishing/social account takeover. Do not disable production email verification to simplify migration.
 
-## Current SQL migration source
+**Critical backup issue:** the current client derives its encrypted keyring backup key from the login password. New OIDC login credentials or OAuth identity linking do **not** automatically unlock old private keys. An explicit old-secret recovery and encrypted-backup rekey flow must be tested **before** legacy authentication is retired. Never silently replace a failed-to-decrypt backup.
 
-The SQL actually tracked in this repo is at:
+## Actual committed legacy SQL
 
-- [Initial Supabase schema](../server/supabase/migrations/20260418071552_initial_schema.sql)
+These are the tracked migration files (the target self-hosted schema will live separately under `server/migrations/`):
+
+- [Initial schema](../server/supabase/migrations/20260418071552_initial_schema.sql)
 - [OAuth trigger update](../server/supabase/migrations/20260418071857_update_auth_trigger_for_oauth.sql)
-- [Client schema alignment attempt](../server/supabase/migrations/20260418071940_align_schema_with_client.sql)
+- [Client alignment attempt](../server/supabase/migrations/20260418071940_align_schema_with_client.sql)
 - [Profile insert RLS](../server/supabase/migrations/20260418072623_add_profiles_insert_policy.sql)
 - [OAuth username collision handling](../server/supabase/migrations/20260418110000_fix_oauth_user_trigger_username_collisions.sql)
 - [Participant delete policy](../server/supabase/migrations/20260418113000_allow_participants_delete_conversations.sql)
 
-**Known blocker:** the committed SQL migrations do not fully recreate the shape expected by `client/src/lib/supabase-chat.js` (including key IDs, profile fields and message receiver columns). Some legacy migrations retain incompatible non-null constraints. A new Supabase project created only from tracked SQL may not be usable. Do **not** paste ad hoc SQL from an untracked file or apply destructive corrections to live data.
+**Known blocker:** these files do **not** fully recreate all columns expected by `client/src/lib/supabase-chat.js`. Do not attempt a destructive or unreviewed production SQL patch. Export the authorized **actual running schema and RLS**, compare with tracked migrations, replay in a disposable isolated test database, and record user/message/backup object counts.
 
-## Required schema validation before any redesign migration
+## Self-hosted replacement configuration (TARGET, examples only)
 
-1. Export schema and RLS policies from the **running** Supabase project (with authorized access).
-2. Diff against the six tracked migrations and current client queries.
-3. Generate ordered, idempotent migration files in the repo; preserve legacy rows.
-4. Replay migrations against a fresh isolated test project and run real RLS-negative tests as two users plus a nonparticipant.
-5. Verify `profiles` does not expose private email data through public SELECT policy; restrict service-role access to server-only code.
-6. Run auth, ciphertext roundtrip and backup recovery tests; record baseline before introducing the new mailbox model.
+**Illustrative names, not implemented environment variables:** the final deployment will need separate OIDC issuer/JWKS/audience settings, an internal PostgreSQL connection secret, private object-store endpoint/credentials, and public Whispr API/WebSocket endpoints. Validate against actual code before setting these values. Secrets must remain server-only.
 
-## Target transition (NOT IMPLEMENTED)
+```dotenv
+# EXAMPLE CONTRACT ONLY; not consumed by current source.
+WHISPR_API_URL=https://api.example.invalid
+OIDC_ISSUER=https://identity.example.invalid/realms/whispr
+OIDC_AUDIENCE=whispr-api
+DATABASE_URL=postgresql://...  # server-only secret
+OBJECT_STORE_ENDPOINT=https://storage.example.invalid
+OBJECT_STORE_BUCKET=encrypted-attachments
+REDIS_URL=redis://...          # optional, internal only
+```
 
-- Introduce `devices`, verified public key bundles, `delivery_envelopes`, idempotent ACKs, limited delivery receipts, `media_objects` and optional encrypted backup metadata alongside the legacy tables.
-- Switch `/app` to encrypted local conversation history and a **pending-only per-device mailbox** using versioned APIs; use Realtime as wake-up hint, not the source of durable history.
-- Use private object storage for **client-encrypted** attachments only; never hand object storage the file keys or plaintext previews.
-- Import old history to local encrypted storage on each device before retiring legacy `messages`; never discard users' ciphertext on a speculative schema rollout.
-- Replace password-derived backup recovery with an independent secret and explicit restore UX.
+Do **not** commit real passwords, OAuth client secrets, object-store keys or OIDC signing keys. A production backend must use HTTPS, verified TLS, private database networks, secret rotation and tested backup/restore. The selected IdP—not a home-grown auth controller—issues login tokens.
 
-See [Data Design](./08_Database_Design.md), [API Design](./09_API_Design.md), [Roadmap](./10_Development_Roadmap.md).
+## Required non-destructive migration gates
 
-## Scalability and caching deployment considerations (TARGET)
+1. **Inventory and backup:** authorized export of Supabase users, key directory, historical messages and encrypted backups; verify object counts, schema/RLS and independent restore.
+2. **Provision target:** self-hosted PostgreSQL, an evaluated OIDC provider, private object store and Whispr-controlled API; test service connectivity and least privilege without old-user data.
+3. **Identity matching:** map `(legacy Supabase identity, verified new OIDC issuer+subject)` to a stable Whispr account UUID by proof of both identities or controlled verified recovery; **never link by matching email alone**.
+4. **Cryptographic recovery:** old keyring restoration and re-encryption under a *separate* recovery secret; validate on a fresh device before invalidating old login credentials.
+5. **New mailbox/data flows:** create `accounts`/`account_identities`, `devices`, signed/prekeys, `delivery_keys`, `pending_envelopes`, `mailbox_events` and private encrypted media metadata in self-hosted PostgreSQL. Verify API authorization and race/expiry/replay tests.
+6. **Client migration:** read legacy ciphertext through authorized old access, decrypt on device, write encrypted local history; checkpoint safely. Switch **new** sends to the Whispr mailbox after user/device verification. Avoid uncontrolled dual writes.
+7. **Controlled retirement:** keep old environment read-only during a defined rollback period; audit recovery and missing-data cases; then revoke Supabase connections/keys and delete data only after authorized retention/export/recovery requirements are satisfied.
 
-The proposed mailbox is **not** yet a tracked Supabase table. Before adding an optional Redis cache, implement authenticated device-scoped PostgreSQL envelope/ACK contracts, RLS, a transactional notification outbox, keyset indexes and bounded expiry workers. Avoid caching sensitive Supabase auth or service-role material.
+Run nonparticipant/unauthorized device tests against the **new controller layer**. The old RLS policies are part of migration risk analysis, not a substitute for backend authorization. A privileged database client can bypass RLS; there is no direct database endpoint in the target client.
 
-When gateway replicas require cross-instance coordination, Redis may hold ephemeral presence and wake-up routing. If Redis is unavailable, **authorized PostgreSQL mailbox polling/fetch must still work**. Redis Pub/Sub is not a durable queue; do not make RLS/authorization depend on cache presence.
+## Existing demo and privileged APIs
 
-Encrypted media can use a private storage bucket and authorized short-lived transfer URLs; the object store/CDN sees ciphertext bytes only. CDN cache keys must not authorize access across accounts. Plan orphan-upload and expiry cleanup separately from mailbox retention.
+The Express `/demo` JWT issuer remains distinct from current Supabase product Auth. Its predictable default JWT secret is a release blocker; don't reuse its login controller unchanged. The Next.js `/api/admin` privileged demo route lacks expected authentication/authorization. Remove or isolate these demo tools before public access.
 
-Supabase Realtime quotas, database connection pools, migration consistency and available RLS policies must be verified against the actual deployed plan before scaling. Cache TTLs and performance goals are proposed in [Scalability and Caching](./13_Scalability_and_Caching.md), not deployed settings.
+## References and next actions
 
-## Optimized database migration target (PLANNED, NOT APPLIED)
+[Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md) · [Optimized Database](./14_Optimized_Database_Design.md) · [System Architecture](./04_System_Architecture.md) · [API Contracts](./09_API_Design.md) · [Roadmap](./10_Development_Roadmap.md).
 
-The proposed physical mailbox separates **`delivery_keys` status/idempotency**, **`pending_envelopes` encrypted payload only** and **`mailbox_events` durable notification intent**, plus registered devices/prekeys and minimal media metadata. Do not add or remove tables in the live Supabase project until the six tracked migrations and current client queries have been reconciled.
-
-Treat browser-direct access differently from server-only queue APIs: service-role bypasses ordinary RLS, so backend device/account authorization is mandatory. The target also requires narrow indexes for per-device inbox and expiry, safe deleted-payload dedup tombstones, and periodic rescan (a timestamp keyset cursor is not a commit-order watermark).
-
-See [Optimized Database Design](./14_Optimized_Database_Design.md) for **illustrative, unexecuted** SQL and additive migration/recovery gates.
-
-## Demo-only and privileged tooling
-
-The Next.js `/api/admin` route can operate with a Supabase service-role client and currently lacks user authorization checks; `ENABLE_DEMO_ADMIN` must never be enabled in a public production deployment. Remove/isolate this path as part of the security work. The Express demo tamper route is likewise not a production capability.
-
-## MCP / developer tooling
-
-Supabase MCP may be configured through the official service with project-scoped authorization. Example clients can use `https://mcp.supabase.com/mcp?project_ref=YOUR_PROJECT_REF` and request only needed capabilities. Treat MCP access as privileged; use short-lived credentials and never commit access tokens, secret keys or personal machine paths.
+**This file is documentation for an exit path.** No production Supabase configuration, users, backups, rows or sessions have been changed.
