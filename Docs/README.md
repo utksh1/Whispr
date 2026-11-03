@@ -33,6 +33,10 @@ At present, `/app` is a browser-direct Supabase encrypted-chat prototype with re
 
 [**13 — Scalability and Caching**](./13_Scalability_and_Caching.md) is part of this **same Whispr documentation tree**. It specifies the logical control/delivery/media planes, PostgreSQL mailbox authority, Redis presence and safe metadata caching, client-local encrypted storage, media/CDN caching, idempotency/ACK failure recovery, backpressure, optional regional routing and measurable performance goals. All proposed cache TTLs/SLOs are **unimplemented design candidates**.
 
+## Optimized physical database design
+
+[**14 — Optimized Database Design**](./14_Optimized_Database_Design.md) refines the target schema: normalized device identities and key bundles, pending ciphertext separated from small delivery/ACK idempotency tombstones, transactional event outbox, minimal media-object metadata, targeted per-device and expiry indexes, transactional client-local records, migration gates and realistic partitioning criteria. Example SQL is **design-only**, not an applied Supabase migration.
+
 ## Core decisions
 
 1. **Client-owned history:** protect messages in device-local storage; server retains only encrypted undelivered envelopes and temporary encrypted blobs.
