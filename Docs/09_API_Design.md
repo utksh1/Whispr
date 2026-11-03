@@ -47,13 +47,13 @@ Whispr's production client will use **only the Whispr-controlled API and realtim
 
 The IdP owns password/MFA/reset pages and token issuance; product APIs own data authorization and E2EE device policies. Configure strict CORS, TLS, CSRF protection for cookie-backed operations, safe token storage and session revocation rules. A normal OIDC login is **not** proof that a new messaging device is legitimate.
 
-**Storage flow:** Whispr's API validates account/device ownership, queries self-managed PostgreSQL, and grants limited S3-compatible object-storage capabilities for *client-encrypted* media. Redis is optional for presence/cache; it is never authoritative for authorization or pending messages.
+**Storage flow:** Whispr's API validates account/device ownership, queries private Whispr PostgreSQL (cloud-managed or self-operated), and grants limited S3-compatible object-storage capabilities for *client-encrypted* media. Redis is optional for presence/cache; it is never authoritative for authorization or pending messages.
 
 **Current `/demo` authentication is a separate legacy test harness** and must not be rebranded as production auth. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
 
 ## 2. Target API principles
 
-1. Client owns long-term history; **Whispr-controlled controllers backed by self-managed PostgreSQL** store only **pending encrypted envelopes**, never full delivered transcripts.
+1. Client owns long-term history; **Whispr-controlled controllers backed by Whispr-controlled PostgreSQL (cloud-managed acceptable)** store only **pending encrypted envelopes**, never full delivered transcripts.
 2. Every request is authorized for a specific account and device by a **Whispr service/policy layer** after verifying OIDC identity and device proof. Senders cannot choose arbitrary `sender_id`; client-submitted account/device claims are not trusted.
 3. All routes are versioned (e.g. `/v1`), schema-validated and rate-limited. Use opaque message IDs and exact envelope size/TTL limits.
 4. HTTP queue persistence is durable; websocket/realtime events are **hints**, not delivery proof.
