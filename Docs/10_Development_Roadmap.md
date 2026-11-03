@@ -38,6 +38,18 @@
 
 **Gate D — migration:** source history counted and decryptable, safe old-to-local import, backup recovery verified, old tables deleted only after explicit policy and rollback window.
 
+## Optimized database work — within existing PR sequence
+
+**Work package 03 (schema):** reconcile the *actual* Supabase production schema and committed migration drift, then validate a **minimal server model**: `devices`, protocol-selected signed/prekey tables, a composite-PK `delivery_keys` ledger, ciphertext-only `pending_envelopes`, narrow `mailbox_events` transactional outbox, minimal `media_objects`, and opted-in encrypted backup metadata. Keep email out of public profiles and do not add a permanent server conversation search table.
+
+**Work package 04 (client DB):** define protected local message indexes `(conversation_id, local_sort_key, message_id)`, atomic crypto-state/inbox/outbox writes, dedup markers, quota/eviction behavior and local-only search without persisted plaintext indexes.
+
+**Work packages 07–08 (mailbox):** accept envelope/ledger/event in one transaction; ACK deletes ciphertext but retains a time-bounded status tombstone; expiry is a terminal transition; validate sender retries, concurrent ACK/send and crash windows. Mailbox keyset cursor is per-scan only—never an assumed commit-order permanent high-water mark. Use pagination and restart sweeps to avoid missing late commits.
+
+**Release/scale gate:** benchmark query plans, B-tree hit rates, WAL, dead tuples, cleanup batch cost, RLS/security-negative tests, transaction contention, p95 fetch and ACK latency and long-offline device growth **before** partitioning, introducing replicas or changing DB providers.
+
+This proposal is documented in [Optimized Database Design](./14_Optimized_Database_Design.md) and has **not** been implemented or benchmarked.
+
 ## Testing and CI
 
 Unit: envelope validation, crypto test vectors, backup errors, local DB and retention.
