@@ -1,36 +1,43 @@
 # Whispr — Problem Statement
 
-This document defines the security problem Whispr is intended to solve.
+## Problem
 
-## Problem Statement
-Create a secure communication system that remains private even if the backend is compromised.
+Typical messaging products may encrypt transport yet retain conversation data or server-managed decryption capability. Even ciphertext-only server archives increase retention, recovery and metadata obligations. Secure messaging must handle offline recipients, lost devices, attachments, identity substitution and failures without pretending the backend is universally trusted.
 
-## Domain
-Cybersecurity / Privacy
+## Target outcome
 
-## Detailed Problem
-Many communication platforms protect traffic using HTTPS, but if the backend server, database, or storage layer is compromised, stored conversations may still be exposed. This means the system is only secure as long as the server remains trustworthy.
+Build the **existing Whispr application** into a local-first, end-to-end encrypted messaging product where:
 
-## Goal
-Design and build a communication platform where message privacy does not depend on trusting the backend.
+- Only authorized endpoints process message and attachment plaintext.
+- Long-term history belongs in locally protected storage, not a perpetual server message table.
+- The server retains a short-lived, access-controlled encrypted mailbox for offline delivery, deleting per-device envelopes after durable ACK or expiration.
+- Attachments are encrypted on-device, stored as time-limited ciphertext objects and decrypted on recipients' devices.
+- Peer identity is authenticated/verified beyond trusting any server-supplied public key.
+- Backup recovery uses a separately controlled secret and does not silently overwrite older encrypted key material.
+- Crash/retry/replay behavior has explicit delivery semantics and testable guarantees.
 
-## Main Challenge
-True security requires:
-- end-to-end encryption
-- secure key management
-- message integrity protection
-- careful threat modeling
-- safe storage of encrypted data
+## Main engineering challenges
 
-## Desired Outcome
-Even if an attacker gains access to the backend:
-- they should not be able to read user messages
-- they should not be able to silently alter messages without detection
-- they should only see encrypted blobs and limited metadata
+Crash-safe ratchet and local DB state; asynchronous key exchange; malicious-directory detection; per-device fanout; queue authorization and RLS; offline timeout semantics; secure media chunking; multi-device recovery; migration of existing encrypted server history; endpoint/browser security.
 
-## Project Interpretation
-Whispr solves this by making the client responsible for encryption and decryption, while the server only handles routing, delivery, and ciphertext storage.
+## Measurable success
 
-## Implementation Note
+Demonstrate two independent devices exchanging E2EE messages while one is offline; verified local persistence; server queue empty after recipient's durable ACK; attachment ciphertext unreadable by object store; repeated/reordered delivery safe; identity substitution detected/warned; failure to decrypt backup never overwrites it; browser/DB breach limitations documented.
 
-This is a problem framing document, not a statement that the full solution is already implemented in code.
+## Additional scalability success criteria (TARGET)
+
+At agreed peak load, the system must preserve per-device mailbox delivery despite Redis notification loss, gateway restarts, duplicate request retries and recipient reconnects. It must apply quotas/backpressure rather than falsely accept undurable messages, retain only bounded pending ciphertext, and prevent a cached device key or CDN object from bypassing access rules. Client-local messages must be recoverable from explicitly configured encrypted backups when storage is lost.
+
+Candidate service targets and measurable traffic formulas are specified in [Scalability and Caching](./13_Scalability_and_Caching.md). No benchmark or operational SLO is claimed yet.
+
+## Control and deployability requirement
+
+Whispr should operate without mandatory Supabase services in its target deployment: run a self-hosted reviewed OIDC provider, Whispr-owned controllers, private PostgreSQL, optional Redis, Socket.IO and a private S3-compatible encrypted-object store. Identity tokens establish authenticated account access, **not** automatic messaging-device trust. Migration must preserve historical ciphertext and recover legacy password-derived encrypted key backups before changing login providers. Avoid writing an insecure custom authentication protocol.
+
+This is a **target requirement**, not an implemented capability. Detailed decision: [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
+## Non-goals
+
+Immediate group chat, calls, federation, high-scale distributed microservices, guaranteed recipient deletion, anonymity from global observers, or protection from an actively compromised endpoint.
+
+**Current state:** Whispr currently has a functional encrypted-message prototype with permanent ciphertext storage and a separate demo backend; this target behavior is **not yet implemented**. See [Architecture](./04_System_Architecture.md) and [Roadmap](./10_Development_Roadmap.md).

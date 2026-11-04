@@ -1,133 +1,86 @@
 # Whispr Server
 
-This directory contains the Whispr backend service.
+Express/Socket.IO service used by the **`/demo`** route of the existing Whispr repository. The product `/app` currently talks directly to Supabase; the two paths are **not a single unified backend**.
 
-## Stack
+## Implemented demo stack
 
-- Node.js
-- Express
-- Socket.IO
-- Zod
-- Helmet
-- CORS
-- dotenv
-- in-memory repository adapters
-- Node test runner
+Node.js, Express, Socket.IO, Zod, Helmet, CORS, dotenv and repository adapters for **filesystem** (configured default), **memory** and **PostgreSQL**. The PostgreSQL adapter contains schema/runtime issues and should not be assumed production-ready.
 
-## Purpose
+## Current routes
 
-The server is the routing and coordination layer for Whispr.
+| Method | Route | Purpose |
+| --- | --- | --- |
+| POST | `/auth/register`, `/auth/login` | Demo account JWT issuance |
+| GET | `/auth/me` | Authenticated account |
+| PUT | `/me/public-key` | Active public key |
+| PUT/GET | `/me/private-key-backup` | Legacy encrypted keyring backup |
+| GET | `/users`, `/users/:username/public-key`, `/keys/:keyId` | Discovery and public key lookup |
+| GET/POST | `/conversations/:peerUsername/messages` | Server-retained demo ciphertext history |
+| POST | `/messages/:messageId/tamper` | **Demo-only** when enabled |
 
-Its long-term responsibilities include:
+OpenAPI: `http://localhost:4000/openapi.json`; Swagger UI: `http://localhost:4000/docs`. Socket.IO uses JWT auth at handshake and broadcasts encrypted message events.
 
-- authentication and session handling
-- public key distribution
-- encrypted message relay
-- ciphertext storage
-- offline message synchronization
-- delivery state updates
-
-Under the project trust model, the server is not trusted with message confidentiality.
-
-## Current State
-
-The backend now implements the MVP service contracts:
-
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /auth/me`
-- `PUT /me/public-key`
-- `GET /users`
-- `GET /users/:username/public-key`
-- `GET /conversations/:peerUsername/messages`
-- `POST /conversations/:peerUsername/messages`
-- `POST /messages/:messageId/tamper` when demo tools are enabled
-
-HTTP routes and Socket.IO connections are JWT-protected. The current persistence layer is in-memory behind repository interfaces, with a Postgres adapter stubbed for the next phase.
-
-## Development
-
-Install dependencies:
+## Start for isolated development
 
 ```bash
 npm install
-```
-
-Start the server:
-
-```bash
+cp .env.example .env
+# Edit .env: set a strong unique JWT_SECRET, disable demo tools when not testing them
 npm start
 ```
 
-By default, the server listens on `http://localhost:4000`.
+Health: `curl http://localhost:4000/health`.
 
-## Health Check
+**Warning:** `server/src/config.js` currently supplies a **predictable default `JWT_SECRET`** if unset; `server/.env.example` also has a placeholder secret and enables demo tools. Do **not** expose this server publicly until secrets are fail-closed and isolated demo capabilities are disabled.
 
-```bash
-curl http://localhost:4000/health
-```
+Supported configuration includes `PORT`, `CLIENT_ORIGIN`, `JWT_SECRET`, `TOKEN_TTL_SECONDS`, `ENABLE_DEMO_TOOLS`, `STORAGE_DRIVER`, `STORAGE_PATH`, `DATABASE_URL` and `DISABLE_REALTIME`. Confirm exact behavior in `src/config.js`, not just the example file.
 
-Expected response:
-
-```json
-{
-  "status": "ok",
-  "service": "Whispr Backend",
-  "storageDriver": "memory"
-}
-```
-
-## Swagger Docs
-
-Swagger UI is available at:
-
-```bash
-http://localhost:4000/docs
-```
-
-Raw OpenAPI JSON is available at:
-
-```bash
-http://localhost:4000/openapi.json
-```
-
-## Environment Variables
-
-The current server reads environment variables through `dotenv`.
-
-Supported variables:
-
-- `PORT`: optional port override
-- `CLIENT_ORIGIN`: allowed browser origin for CORS and Socket.IO
-- `JWT_SECRET`: signing secret for auth tokens
-- `TOKEN_TTL_SECONDS`: auth token lifetime
-- `ENABLE_DEMO_TOOLS`: enables ciphertext tamper route for the demo harness
-- `STORAGE_DRIVER`: `memory` today, `postgres` reserved for the next adapter phase
-- `DATABASE_URL`: Neon/Postgres connection string used when `STORAGE_DRIVER=postgres`
-- `DISABLE_REALTIME`: disables Socket.IO broadcast path and expects polling/manual refresh instead
-
-See `./.env.example` for a minimal example.
-
-## Tests
-
-Run the server integration test suite with:
+Tests:
 
 ```bash
 npm test
 ```
 
-## Development Notes
+Current automated tests do not establish secure end-to-end sessions, legacy Supabase RLS or new self-hosted API authorization and retention guarantees.
 
-- Do not log plaintext messages, keys, or sensitive secrets.
-- Keep request validation strict as endpoints are added.
-- Preserve the zero-trust backend model.
-- Update `../Docs/09_API_Design.md` and related docs when backend behavior changes.
+## Scalability and caching module contracts (TARGET / NOT IMPLEMENTED)
 
-## Related Docs
+Initial production design: one modular backend with independently bounded identity/directory, durable mailbox, stateless realtime and encrypted-media authorization modules. PostgreSQL remains authoritative for pending encrypted envelopes, idempotency/ACK, device revocation and notification-outbox records.
 
-- `../README.md`
-- `../CONTRIBUTING.md`
-- `../Docs/README.md`
-- `../Docs/04_System_Architecture.md`
-- `../Docs/06_Threat_Model.md`
-- `../Docs/09_API_Design.md`
+**Optional Redis** provides ephemeral gateway routing/presence, allowlisted public metadata cache and isolated rate-limit counters; its outage cannot delete queued ciphertext or disable high-risk abuse protections. Realtime notifications are only hints; clients fetch mailbox state by authenticated cursor.
+
+Support bounded connection/request/queue quotas, `429`/`503` backpressure, retention workers, attachment direct-to-private-object-storage flow, privacy-safe metrics and crash/reconnect/load tests. Defer sharding, partitioning and multi-region writers until actual throughput warrants them.
+
+Read [Scalability and Caching](../Docs/13_Scalability_and_Caching.md) for proposed TTLs, SLO candidates and security/failure matrix.
+
+## Self-hosted Whispr backend modules (TARGET / NOT IMPLEMENTED)
+
+**New production responsibility:** Whispr owns all authenticated API/controller logic. The current Express server serves `/demo`; do **not** copy its predictable JWT-secret fallback or demo tampering/admin routes into production.
+
+Target modules in `server/src/modules/`: `auth` (self-hosted OIDC verification and stable account mapping), `devices` (enrollment/revocation), `keys` (signed public bundles/prekeys), `mailbox` (pending encrypted envelope API, idempotent ACK), `realtime` (Socket.IO hints), `media` (authorized encrypted file capabilities), `recovery` (opaque E2EE backups). `workers` handle transactional notification outbox, mailbox expiry and media cleanup.
+
+Target infrastructure: **private cloud-managed or self-operated PostgreSQL** with `accounts`, verified `account_identities(issuer,subject)`, device/key tables, `delivery_keys` ledger, `pending_envelopes` ciphertext and `mailbox_events` outbox; self-hosted reviewed OIDC provider (Keycloak candidate), private cloud object storage or an S3-compatible alternative, with optional managed Redis. No target Supabase runtime and no direct browser DB access.
+
+Use Docker Compose for isolated dev, TLS/secret isolation and restore drills for production. These modules/paths are **planned**, not in the current codebase. See [Self-Hosted Backend and Supabase Exit](../Docs/15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
+## Cloud runtime option (TARGET / NOT DEPLOYED)
+
+Whispr-controlled Node.js controllers, Socket.IO gateways and workers can run on a cloud container platform (AWS ECS/Fargate is one example). A reviewed OIDC provider can run in its own protected cloud deployment. Private **cloud-managed PostgreSQL**, private ciphertext object storage (e.g. S3) and optional managed Redis are acceptable; Whispr still owns authentication policy, schema, device authorization and delivery protocol, and Supabase is not part of the future runtime.
+
+Use container/IaC reviews, private networking and IAM roles, TLS, secret management, database backup/restore drills, media capability tests, gateway reconnect catch-up and cost alerts. See [Cloud Hosting and Deployment](../Docs/16_Cloud_Hosting_and_Deployment.md).
+
+## Render and optional Cloudflare R2 deployment (TARGET)
+
+Run hardened Whispr Node.js API + Socket.IO from `server/` as a Render **always-on web service**, listening on `0.0.0.0` and `PORT`. Keep the separately deployed reviewed OIDC service and paid **Render PostgreSQL** private where appropriate. The current `/demo` service is **not** the production backend and does not yet implement this deployment contract. Implement mailbox/ACK transactional workers and test recovery after Render restarts. Separate workers and add **Render Key Value** only after measured need.
+
+**Text-only Whispr does not require object storage**. When media ships, configure the Render Media Controller with **server-only Cloudflare R2 credentials**, a private bucket, per-device authorization, size/expiry limits, short-lived R2 S3 presigned URLs and orphan cleanup. Keep the API functional when media is feature-disabled. Never save shared attachments to the Render filesystem or require AWS S3.
+
+See [Vercel + Render + Optional R2](../Docs/17_Render_Vercel_R2_Deployment.md). All these are **planning documents**, not deployed features.
+
+## Target role (planned, NOT implemented)
+
+Evolve toward a self-hosted modular backend hosting authenticated device directory/key bundles, per-device encrypted mailboxes, ACK/expiration, Whispr-controlled Socket.IO wake-up and private S3-compatible ciphertext media APIs. Long-term chat history and decryption remain on endpoint devices. Keep or retire `/demo` behind explicit isolation; do not treat this design as a shipped API.
+
+Do not add a permanent server-side messages archive to the target architecture or advertise browser-independent identity verification without client key pinning.
+
+See [Architecture](../Docs/04_System_Architecture.md), [API](../Docs/09_API_Design.md), [Database](../Docs/08_Database_Design.md), [Roadmap](../Docs/10_Development_Roadmap.md).

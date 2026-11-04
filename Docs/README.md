@@ -1,60 +1,76 @@
 # Whispr Documentation
 
-This directory contains the design and planning documents for Whispr.
+These are the **existing project's canonical design docs**, updated in place to guide the local-first redesign. **There is no separate "2.0" version or docs directory.** Changes are incremental and must preserve safe migration of existing user data.
 
-## How To Read These Docs
+## Status language
 
-The docs in this folder are a mix of:
+- **Current / as-is:** behavior verified in the repository today.
+- **Target / proposed:** design decision or planned work; **not implemented**.
+- **Release gate:** validation required before declaring that capability production-ready.
 
-- product and problem framing
-- target architecture and API design
-- security model and threat assumptions
-- implementation roadmap
-- demo and pitch material
+At present, `/app` is a browser-direct Supabase encrypted-chat prototype with retained server ciphertext; `/demo` is a different Express/Socket.IO harness. The target is encrypted local conversation history, temporary per-device pending delivery, reviewed session cryptography, authenticated identity verification and client-encrypted attachments.
 
-Not every design described here is fully implemented in the current codebase.
+## Document index
 
-When a document describes intended behavior that does not yet exist in code, it should be written as a target design rather than as an already-shipped feature.
+| Document | Purpose |
+| --- | --- |
+| [01 — Project Overview](./01_Project_Overview.md) | Product vision, accurate limits and transition |
+| [02 — Problem Statement](./02_Problem_Statement.md) | Security/privacy outcomes and success criteria |
+| [03 — Core Features](./03_Core_Features.md) | P0/P1/P2 feature backlog, user promises and non-guarantees |
+| [04 — System Architecture](./04_System_Architecture.md) | Trust boundaries, local-first data flow, mailbox/media responsibilities |
+| [05 — Cryptography](./05_Cryptography_Security_Flow.md) | Current crypto vs reviewed protocol target, identity and backup lifecycle |
+| [06 — Threat Model](./06_Threat_Model.md) | Assets, attackers, browser/server limitations and release gates |
+| [07 — Tech Stack](./07_Tech_Stack.md) | Retained components vs prospective replacements |
+| [08 — Database Design](./08_Database_Design.md) | Current schema drift, server pending mailbox and local encrypted data |
+| [09 — API Design](./09_API_Design.md) | Existing APIs and explicitly proposed versioned mailbox/media contracts |
+| [10 — Development Roadmap](./10_Development_Roadmap.md) | Ordered PR work and validation gates |
+| [Legacy Supabase Setup and Exit](./10_Supabase_Setup.md) | Historical auth/config, tracked SQL, user recovery and decommissioning |
+| [11 — Demo Flow](./11_Demo_Flow.md) | Isolated demo and honest security demonstration |
+| [12 — Pitch Notes](./12_Pitch_Notes.md) | Claims grounded in current and intended capabilities |
+| [13 — Scalability and Caching](./13_Scalability_and_Caching.md) | Cache hierarchy, Redis, gateway and mailbox scale, CDN security, TTL, SLO and failure matrix |
+| [14 — Optimized Database Design](./14_Optimized_Database_Design.md) | Self-managed PostgreSQL schema, identity mappings, mailbox, indexes and migration constraints |
+| [15 — Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md) | Whispr controllers, OIDC, private infrastructure and staged Supabase exit |
+| [16 — Cloud Hosting and Deployment](./16_Cloud_Hosting_and_Deployment.md) | Cloud-managed PostgreSQL and object storage, container hosting, IAM, resiliency, costs and provider-neutral choices |
+| [17 — Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md) | Initial deployment preference; text-only mode without object storage; encrypted attachment upload, security and costs |
 
-## Document Map
+## Scalability and caching reference
 
-- `01_Project_Overview.md`: project summary, vision, and value proposition
-- `02_Problem_Statement.md`: security and privacy problem definition
-- `03_Core_Features.md`: must-have, good-to-have, and demo-facing features
-- `04_System_Architecture.md`: target system structure and trust boundaries
-- `05_Cryptography_Security_Flow.md`: intended cryptographic flow and trust assumptions
-- `06_Threat_Model.md`: attacker capabilities, out-of-scope items, and mitigations
-- `07_Tech_Stack.md`: selected technical direction
-- `08_Database_Design.md`: target storage schema and design principle
-- `09_API_Design.md`: target backend API and realtime events
-- `10_Development_Roadmap.md`: phased implementation plan
-- `11_Demo_Flow.md`: suggested product demonstration sequence
-- `12_Pitch_Notes.md`: presentation and judging narrative
+[**13 — Scalability and Caching**](./13_Scalability_and_Caching.md) is part of this **same Whispr documentation tree**. It specifies the logical control/delivery/media planes, PostgreSQL mailbox authority, Redis presence and safe metadata caching, client-local encrypted storage, media/CDN caching, idempotency/ACK failure recovery, backpressure, optional regional routing and measurable performance goals. All proposed cache TTLs/SLOs are **unimplemented design candidates**.
 
-## Documentation Rules
+## Optimized physical database design
 
-- Keep docs aligned with the codebase.
-- Mark planned or target behavior clearly.
-- Avoid presenting future work as already implemented.
-- Update linked documents together when changing architecture, crypto, storage, or API contracts.
-- Prefer technical precision in engineering docs.
-- Keep pitch-oriented language in pitch docs, not implementation docs.
+[**14 — Optimized Database Design**](./14_Optimized_Database_Design.md) refines the target schema: normalized device identities and key bundles, pending ciphertext separated from small delivery/ACK idempotency tombstones, transactional event outbox, minimal media-object metadata, targeted per-device and expiry indexes, transactional client-local records, migration gates and realistic partitioning criteria. Example SQL is **design-only**, not an applied database migration.
 
-## When To Update Docs
+## Self-hosted platform decision (TARGET / NOT IMPLEMENTED)
 
-Update the relevant file in this directory when changing:
+The current `/app` still uses Supabase; the **target runtime removes Supabase Auth, PostgREST/direct DB APIs, Realtime and Storage**. Whispr owns backend controllers, a private Whispr-controlled PostgreSQL mailbox (cloud-managed acceptable), Socket.IO realtime gateways, and private S3-compatible encrypted object storage. A reviewed self-hosted OIDC provider handles login; Whispr controllers enforce account/device authorization. Optional Redis remains non-authoritative.
 
-- trust assumptions
-- cryptographic design
-- message format
-- authentication behavior
-- database schema direction
-- API contracts
-- roadmap scope
+[**15 — Self-Hosted Backend and Supabase Exit**](./15_Self_Hosted_Backend_and_Supabase_Exit.md) specifies the architecture and the safe staged migration. Old ciphertext, verified identity mappings and encrypted key backups must be recoverable before decommissioning legacy services.
 
-## Suggested Maintenance Flow
+## Cloud hosting decision (TARGET)
 
-1. Change code.
-2. Update the matching technical doc.
-3. Update `README.md` or `CONTRIBUTING.md` if contributor-facing behavior changed.
-4. Verify the docs still distinguish current implementation from target architecture.
+Cloud hosting **does not undo the decision to own Whispr's application and remove Supabase**. The backend/Socket.IO controllers and a reviewed OIDC provider can run in cloud containers, with cloud-managed PostgreSQL, private cloud object storage and optional managed Redis. Whispr retains schema, keys/authorization rules, ciphertext-only retention and client E2EE design. **No cloud resources have been provisioned.**
+
+[**16 — Cloud Hosting and Deployment**](./16_Cloud_Hosting_and_Deployment.md) documents the reference stack, vendor-neutral alternatives, security, WebSocket behavior, backups and cost monitoring.
+
+## Initial deployment profile: Vercel + Render; media optional
+
+The chosen **initial target hosting profile** is **Vercel for Next.js `client/`** and **Render for Whispr-controlled API/Socket.IO, reviewed OIDC and paid PostgreSQL**. **Cloudflare R2 is preferred only once encrypted media sharing is implemented**. No AWS S3 account, R2 bucket or other blob store is necessary for the **text-only MVP**. Render Key Value/Redis remains optional and is never the durable mailbox.
+
+[**17 — Vercel + Render + Optional Cloudflare R2**](./17_Render_Vercel_R2_Deployment.md) is the specific configuration, staged rollout, security, provider limits and cost guide. The [general cloud design](./16_Cloud_Hosting_and_Deployment.md) remains a portability/alternative-provider reference.
+
+## Core decisions
+
+1. **Client-owned history:** protect messages in device-local storage; server retains only encrypted undelivered envelopes and temporary encrypted blobs.
+2. **Durable asynchronous transport:** queues, idempotent send, retry, per-device ACK *after local persistence*, expiry and reconnect handling.
+3. **Verified identity and reviewed protocol:** current AES-GCM ciphertext authentication is not proof of correspondent identity; avoid custom ratcheting protocols.
+4. **Separate recovery:** account password is not a backup decryption key; encrypt before upload and require explicit recovery UX.
+5. **Incremental migration:** reconcile real schema and preserve legacy ciphertext until imported/verified; no rewrite of the entire product on a separate branch.
+
+## Documentation update policy
+
+Update architecture, threat model, schema, API, client/server READMEs and tests together when behavior changes. Replace "target" labels only after code + negative security tests demonstrate a feature. Never describe proposed `/v1` endpoints as deployed. Keep historical docs for the demo honest about its distinct backend, insecure defaults and demonstration-only routes.
+
+## Before editing implementation
+
+Read [Architecture](./04_System_Architecture.md) → [Threat Model](./06_Threat_Model.md) → [Data Design](./08_Database_Design.md) → [API Design](./09_API_Design.md) → [Roadmap](./10_Development_Roadmap.md). Document any unresolved decisions as ADRs **inside the existing docs tree when actually needed**; do not generate parallel version trees.

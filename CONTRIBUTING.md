@@ -1,234 +1,113 @@
 # Contributing to Whispr
 
-Thanks for contributing to Whispr.
+Whispr remains **one existing repository and application**. We are evolving its system design in place toward local-first encrypted messaging, with no separate "2.0" project.
 
-Whispr is a privacy-focused messaging project built around a zero-trust backend model. Contributions should preserve that core principle: the server may route and store data, but it must not be able to read message plaintext.
+## Start here
 
-## Project Status
+Read the [root README](./README.md), [docs index](./Docs/README.md), [system architecture](./Docs/04_System_Architecture.md), [threat model](./Docs/06_Threat_Model.md) and [implementation roadmap](./Docs/10_Development_Roadmap.md). The docs distinguish **current implemented behavior** from the **planned target**; avoid presenting plans as completed security guarantees.
 
-This repository is still in an early implementation stage.
+## Repository layout
 
-- The `client/` app is a Next.js application.
-- The `server/` app is an Express and Socket.IO service with a health endpoint and realtime server bootstrapping.
-- The `Docs/` directory captures the intended architecture, security model, API direction, and roadmap.
+| Path | Current role |
+| --- | --- |
+| `client/` | Next.js product `/app` using browser-direct Supabase, plus separate `/demo` UI |
+| `server/` | Express/Socket.IO demo auth and repository-backed API |
+| `server/supabase/migrations/` | Tracked Supabase schema evolution (currently inconsistent with some product queries) |
+| `Docs/` | Canonical, in-place architecture, API, data, crypto, roadmap and demonstration documentation |
 
-Contributors should treat the docs as design intent, not as proof that every feature is already implemented.
-
-## Repository Layout
-
-- `client/`: frontend application built with Next.js, React, TypeScript, and Tailwind CSS.
-- `server/`: backend service built with Express, Socket.IO, Zod, Helmet, and CORS.
-- `Docs/`: architecture, security, API, database, roadmap, demo, and pitch documentation.
-- `README.md`: project overview and navigation entry point.
-
-Service-specific notes live in:
-
-- `client/README.md`
-- `server/README.md`
-- `Docs/README.md`
-
-## Prerequisites
-
-- Node.js 18 or newer
-- npm
-- Git
-
-## Local Development
-
-### 1. Clone the repository
+## Getting started
 
 ```bash
 git clone https://github.com/utksh1/Whispr.git
 cd Whispr
+cd client && npm install && npm run dev
 ```
 
-### 2. Install client dependencies
+The client typically runs on `http://localhost:3000`. Configure `client/.env.local` manually; a `client/.env.example` file is **not** tracked. See [Supabase Setup](./Docs/10_Supabase_Setup.md).
+
+For the **isolated demo API**, use another terminal:
+
+```bash
+cd server
+npm install
+cp .env.example .env
+# Replace the JWT_SECRET placeholder; disable demo tools when not demonstrating
+npm start
+curl http://localhost:4000/health
+```
+
+`server/.env.example` exists. **The code currently falls back to a predictable JWT signing key if the environment variable is missing**; this must be fixed before a public release. Demo tamper/admin capabilities must not be exposed in production.
+
+## Non-negotiable engineering principles
+
+1. **Plaintext and private key safety:** never send chat/file plaintext or unencrypted recovery material to the server. No ordinary browser `localStorage` private-key exports in the target architecture.
+2. **Local history, temporary relay:** the server may durably hold **pending ciphertext**, not a perpetual delivered-message archive.
+3. **Strong identity:** authentication is not peer key verification. Treat directory substitution, key changes, revocation and device enrollment as threats.
+4. **Reviewed crypto:** do not roll your own Double Ratchet. Make protocol choice, audit status, state persistence and test vectors explicit.
+5. **Recoverable state:** commits must atomically preserve message/ratchet/outbox state; retry and ACK must be idempotent.
+6. **Safe migration:** do not drop existing encrypted history; verify client import and recovery first.
+7. **Data minimization:** least-privilege RLS, explicit TTL/retention, strict authorization on every mailbox/media operation.
+
+## Self-hosted Whispr contribution rules
+
+Whispr's current `/app` is browser-direct Supabase and `/demo` has separate Express JWT sessions. **Target implementation must remove Supabase as a runtime dependency after verified migration**, not build a parallel "2.0" product. Use Whispr-owned controllers/services/policies/repositories, private PostgreSQL, an evaluated reviewed self-hosted OIDC provider, Socket.IO and private S3-compatible encrypted object storage. Redis remains optional.
+
+Do **not** implement production password/OAuth/MFA/session issuance from scratch or reuse the predictable demo JWT fallback. Map verified OIDC `(issuer,subject)` to stable Whispr account UUIDs; email equality is insufficient to link legacy users. Device enrollment requires independent proof; the client remains responsible for E2EE identity verification.
+
+Keep `server/supabase/migrations/` as legacy evidence and write approved target self-hosted migrations under `server/migrations/`. Auth migration PRs require an identity-linking test matrix, recovery of password-derived legacy key backups, user-controlled rekey, validated local-history import, database backup/restore and rollback/decommission gates. No external service or data deletion is implied by a documentation change.
+
+Architecture reference: [Self-Hosted Backend and Supabase Exit](./Docs/15_Self_Hosted_Backend_and_Supabase_Exit.md).
+
+## Vercel + Render deployment and media contribution rules
+
+Use the **same Whispr repo**: Vercel deploys `client/`; Render deploys `server/` and the separately reviewed OIDC provider, with paid Render PostgreSQL for real users. These are **target services** and no deployment is implied by these docs. Enforce no plaintext in Vercel SSR/caches, no passwords or R2 keys in `NEXT_PUBLIC_*`, strict Render CORS/issuer validation and mailbox recovery after socket restarts.
+
+**Media is conditional:** a text-only MVP must run without any S3/R2/Blob credentials. Implement a media storage interface, disabled-by-default feature flag and contract tests. With attachments, prefer private Cloudflare R2 and per-object short-lived server-authorized signed URLs. Never commit real media credentials, make the bucket public, or persist shared media files in Render process storage. AWS S3 can be an adapter alternative, not required infrastructure.
+
+See [Vercel + Render + Optional R2](./Docs/17_Render_Vercel_R2_Deployment.md).
+
+## Cache and scaling design reviews
+
+Any PR introducing Redis, shared edge caching, realtime fanout, partitioned mailbox storage or media transfer must document: authoritative owner of each record, cache allowlist and TTL, invalidation/revocation safety, per-tenant authorization, data retention, idempotency and ACK semantics, retry/backpressure behavior, and a concrete fault-injection test.
+
+**Not allowed:** Redis-only pending message delivery; caching private key/backup material, plaintext or bearer tokens in shared systems; treating a WebSocket publish as a durable queue commit; silently disabling rate limiting when shared cache fails; unbounded media proxying in the messaging API.
+
+Design targets in [Scalability and Caching](./Docs/13_Scalability_and_Caching.md) are not implemented or benchmarked by documentation alone.
+
+## Validation
 
 ```bash
 cd client
-npm install
-```
-
-### 3. Start the client
-
-```bash
-npm run dev
-```
-
-By default, the client runs on `http://localhost:3000`.
-
-### 4. Install server dependencies
-
-```bash
-cd ../server
-npm install
-```
-
-### 5. Start the server
-
-```bash
-node index.js
-```
-
-By default, the server runs on `http://localhost:4000`.
-
-### 6. Verify the backend is running
-
-Open `http://localhost:4000/health`.
-
-Expected response:
-
-```json
-{
-  "status": "ok",
-  "service": "Whispr Backend"
-}
-```
-
-## Environment Configuration
-
-The current server code reads environment variables through `dotenv` and uses `PORT` when provided.
-
-- Do not commit secrets, API keys, credentials, or private keys.
-- Keep local environment files untracked.
-- If you introduce a new required environment variable, document it in the relevant README and update this file.
-
-## Development Principles
-
-- Preserve the zero-trust backend model.
-- Keep plaintext, private keys, and decrypted content off the server.
-- Prefer minimal, reviewable pull requests.
-- Update documentation when behavior, architecture, or security assumptions change.
-- Be explicit about tradeoffs when changing crypto, auth, transport, or storage flows.
-
-## Coding Expectations
-
-### Frontend
-
-- Use TypeScript.
-- Follow the existing Next.js and React structure.
-- Keep UI changes aligned with the security and product goals described in `Docs/`.
-
-### Backend
-
-- Validate request payloads strictly.
-- Avoid logging sensitive data.
-- Keep security middleware enabled unless there is a documented reason to change it.
-
-### Security-sensitive changes
-
-Changes involving any of the following should include documentation updates:
-
-- cryptographic primitives
-- key lifecycle
-- message payload structure
-- authentication flows
-- database storage of security-related fields
-- threat model assumptions
-
-Relevant docs live in:
-
-- `Docs/04_System_Architecture.md`
-- `Docs/05_Cryptography_Security_Flow.md`
-- `Docs/06_Threat_Model.md`
-- `Docs/08_Database_Design.md`
-- `Docs/09_API_Design.md`
-
-## Validation Before Opening a Pull Request
-
-Run the checks that exist for the area you changed.
-
-### Client
-
-```bash
-cd client
+npm test
 npm run lint
 npm run build
 ```
 
-### Server
+```bash
+cd server
+npm test
+```
 
-The server does not yet define a real automated test script.
+These are **existing commands**, not proof that new crypto, mailbox or Supabase RLS integration tests already exist. Document anything you cannot run. For changes to the target architecture, add failure and negative-security tests covering authorization, network loss, duplicate/replayed envelopes, corrupted media, browser eviction, failed backup recovery and unexpected key changes.
 
-At minimum:
+## Pull requests
 
-- start the server locally
-- confirm `GET /health` responds successfully
-- verify any changed endpoints or realtime behavior manually
+Use descriptive branches and limited-scope PRs. Include:
 
-If you add server scripts for testing, linting, or running in development mode, update this guide.
+- What is current, what changes now, and what remains planned.
+- Threat model and backward-compatibility impact.
+- Clear API/schema/protocol changes and migration steps.
+- Test commands, outcomes and any skipped gates.
+- Relevant updates to **existing** `Docs/` and service READMEs.
 
-## Branch Naming
+Do not silently change crypto, key derivation, device-identity semantics or production retention. Changes to auth, media, backend storage or client state require review of [Cryptography](./Docs/05_Cryptography_Security_Flow.md), [Data Design](./Docs/08_Database_Design.md), and [API Design](./Docs/09_API_Design.md).
 
-Use short, descriptive branch names.
+## Security disclosures
 
-Examples:
+Do not post exploitable security issues with sensitive details in public issues. Contact the repository maintainers through an established private channel. Do not share credentials, private keys, production ciphertext or personally identifiable data in PRs.
 
-- `feat/client-chat-shell`
-- `fix/socket-reconnect`
-- `docs/api-cleanup`
-- `security/payload-validation`
+## Review priorities
 
-## Commit Guidance
+First focus on strong secrets and privileged-route isolation, canonical migrations/RLS, key lifecycle protection and reliable local data persistence. Defer groups/calling and distributed infrastructure until one-to-one encrypted messaging and offline media transfer pass security gates.
 
-- Keep commits focused.
-- Use clear messages that describe intent.
-- Prefer messages such as `add healthcheck docs`, `fix message schema validation`, or `update threat model for replay protection`.
-
-## Pull Request Expectations
-
-Each pull request should include:
-
-- a concise summary of the change
-- the reason for the change
-- testing or verification notes
-- screenshots for UI changes when relevant
-- linked issue or context when applicable
-- documentation updates for architecture, security, or workflow changes
-
-Avoid mixing unrelated refactors with feature work.
-
-## Documentation Contributions
-
-Documentation is part of the product and security story.
-
-- Keep docs consistent with the actual codebase.
-- Mark future or planned behavior clearly instead of presenting it as implemented.
-- Prefer precise wording over marketing language in implementation docs.
-- When updating APIs, data models, or security assumptions, update the matching file in `Docs/`.
-
-## Reporting Security Issues
-
-Do not open a public issue for a suspected vulnerability.
-
-Instead, contact the maintainers privately through the repository owner or the project contact path listed on GitHub. Include:
-
-- a clear description of the issue
-- impact assessment
-- reproduction steps if safe to share
-- proposed mitigation if available
-
-## Good First Contributions
-
-Useful early contributions include:
-
-- improving validation and error handling
-- strengthening documentation consistency
-- adding missing scripts for local development
-- improving health checks and local setup
-- tightening API contracts and request schemas
-- replacing placeholders with production-ready project guidance
-
-## Out of Scope for Casual Changes
-
-Coordinate larger changes before implementing them if they significantly alter:
-
-- the cryptographic design
-- the trust model
-- key management strategy
-- storage model for messages or devices
-- authentication architecture
-
-## Code of Conduct
-
-Be respectful, direct, and constructive in project discussions and reviews.
+Be respectful and evidence-driven in review discussions.

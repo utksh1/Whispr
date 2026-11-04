@@ -1,51 +1,78 @@
 # Whispr — Core Features
 
-This document lists target features for the project and should not be read as a completion checklist for the current codebase.
+> **One existing product, incremental redesign.** This is the target feature backlog, **not** a claim that these capabilities are already shipped.
 
-## Must-Have Features
-1. **User authentication**
-   - Secure signup and login
-   - Session handling
+## Current application
 
-2. **Device keypair generation**
-   - Public/private keypair generated on the client
-   - Public key shared with backend
-   - Private key never leaves the device in plaintext
+- `/app`: Supabase account authentication, browser-side P-256/AES-GCM message encryption, server-stored ciphertext, Realtime updates, account discovery and encrypted remote keyring backup.
+- `/demo`: separate Express/Socket.IO demonstration with optional ciphertext-tampering capability.
+- Existing image/file/video flows, secure per-device ratcheting, local encrypted message history, reliable offline outbox, multi-device device fanout and protected local key persistence are **not implemented as designed below**.
 
-3. **End-to-end encrypted one-to-one messaging**
-   - Messages encrypted before leaving sender device
-   - Messages decrypted only on receiver device
+## P0 — Core architecture and usable private messaging
 
-4. **Encrypted message storage**
-   - Backend stores only ciphertext
-   - Plaintext never written to server database
+| Feature | Acceptance requirement |
+| --- | --- |
+| Encrypted local message history | Messages persist in device-local encrypted database; no permanent server conversation archive |
+| Per-device pending mailbox | Authenticated ciphertext fetch, idempotent send, durable ACK, configurable TTL, expiry cleanup |
+| Offline reliability | Durable sender outbox; retry after restart; ACK only after recipient's local commit |
+| Reviewed one-to-one E2EE | Authenticated session setup, forward-secret ratcheting, replay and out-of-order handling |
+| Key verification | Safety numbers/QR verification, pinned identity, visible unexpected key-change warnings |
+| Secure key/recovery management | No plaintext PKCS#8 in `localStorage`, separate login/backup secrets, no silent backup overwrite |
+| Encrypted image and document transfer | Client encryption, authenticated manifest/chunks, private temporary object storage |
+| Account and privacy settings | Device/security settings, retention disclosure, safe errors, recoverability warnings |
+| Security hardening | Strong mandatory secrets, closed demo admin surface, RLS/tenant isolation, negative CI tests |
 
-5. **Message integrity**
-   - Detect tampering or corruption
-   - Ensure receiver gets authentic data
+### P0 — Scalability requirements for core delivery
 
-6. **Secure key exchange**
-   - Sender retrieves receiver public key
-   - Session/message key established safely
+- Durable PostgreSQL acceptance with sender-visible retryable failure under overload; no `accepted` result before commit.
+- Device-scoped idempotent envelope IDs, keyset mailbox pagination, bounded TTL/expiry, and **transactional outbox** for non-durable WebSocket wake-up hints.
+- Multi-instance-ready stateless realtime gateway and reconnect fetch that survives Redis Pub/Sub loss.
+- Safe public metadata cache allowlist; no plaintext chat/key/backup/session-token values in Redis or a CDN.
+- Per-account/device rate limits, pending-byte caps, connection and media concurrency quotas; conservative behavior when the security counter store fails.
+- Recipient ACK after local durable save, replay/duplicate protection, bounded retries and no cross-device premature envelope deletion.
+- Baseline load tests for queue aging, database saturation and gateway reconnect storms with redacted operational telemetry.
 
-7. **Real-time delivery**
-   - WebSocket or Socket.IO based live messaging
-   - Offline users can fetch encrypted messages later
+See [Scalability and Caching](./13_Scalability_and_Caching.md). Redis and CDN are **optional infrastructure**, not preconditions to ship the first local-first core.
 
-## Good-to-Have Features
-- Disappearing messages
-- Read receipts with privacy-safe design
-- Encrypted file attachments
-- QR-based key verification
-- Multi-device support
-- Key rotation
-- Secure notifications with minimal leakage
+### P0 — Self-hosted backend requirements
 
-## Demo-Friendly Features
-- “Compromised server” admin panel showing ciphertext only
-- Side-by-side plaintext on client vs ciphertext in database
-- Message tampering demo showing verification failure
+- No runtime dependency on Supabase Auth, PostgREST, Realtime or Storage **after a verified migration**; legacy connections retained only for permitted temporary read/rollback.
+- Reviewed self-hosted OIDC authentication (Keycloak is a candidate), Whispr Auth Controller token validation and stable verified `(issuer,subject)` → local account UUID mapping; no DIY password/OAuth/JWT cryptography.
+- Device enrollment and revocation as independently secured flows; account login alone cannot silently replace a peer E2EE identity.
+- Self-managed PostgreSQL with device-scoped ciphertext mailbox, compact dedup/ACK ledger, transactional event outbox and narrow data access through Whispr controllers.
+- Whispr-owned Socket.IO gateway for wake-up hints; private S3-compatible object store for client-encrypted attachment bytes; optional Redis for reconstructible coordination only.
+- Safe Supabase exit: authorized legacy export, old backup restore under old credential, independent recovery secret rekey, verified client-local history import, rollback and delayed decommission.
+- Docker Compose isolated development stack, production HTTPS/secret isolation, backup/restore drills and CI security-negative tests.
 
-## Implementation Note
+These are **planned acceptance requirements**, not existing deployed features. See [Self-Hosted Backend and Supabase Exit](./15_Self_Hosted_Backend_and_Supabase_Exit.md).
 
-As features move from planned to implemented, update this file and the related architecture, API, and README documentation together.
+### Deployment-feature separation (TARGET)
+
+- P0 initial text-only cloud deployment: **Vercel Next.js frontend**, **Render API + Socket.IO + OIDC**, and **paid Render PostgreSQL** for device directory, pending encrypted envelopes, dedup and transactional outbox. No AWS S3/R2 bucket is required.
+- P1 encrypted attachments: add private **Cloudflare R2** behind a storage adapter, browser-side encryption/chunking, scoped temporary signed uploads/downloads, exact CORS, retention/cleanup and malicious-file testing. The text-only app works when R2 is not configured.
+- Optional scale: Render Key Value (Redis-compatible) for multiple gateway nodes, presence and targeted cache; never a durable mailbox.
+- Do not treat sleeping free Render web services or 30-day free Postgres as durable real-user hosting.
+
+See [Vercel + Render + Optional R2](./17_Render_Vercel_R2_Deployment.md). All these changes are **planned**, not running.
+
+## P1 — Product completeness
+
+Resumable video and voice-note attachments; local-only message search; message statuses (queued, accepted, delivered, optionally read); block/report controls; delete-for-me and best-effort remote delete requests; encrypted backup export/restore; multiple authorized devices with device-specific sessions and per-device delivery.
+
+## P2 — Explicitly deferred
+
+Group messaging (consider MLS), encrypted calling, social/discover feeds, rich reactions, large-scale server federation and anonymity features. Do not delay secure one-to-one chat to build these.
+
+## UX guarantees and non-guarantees
+
+- "Server accepted" is not "recipient delivered"; "delivered to device" is not "read by human".
+- "Delete for everyone" is best effort; it cannot remove screenshots, exported copies or offline backups.
+- Browser-local storage may be cleared/evicted. Users need recovery options and explicit warnings.
+- The relay can know delivery metadata. Avoid claiming the service is metadata-blind.
+- Encrypted file upload must not bypass client-side content validation and safe preview rules.
+
+## Demo tooling policy
+
+A ciphertext inspection/tampering demo may be preserved in a separate, non-production-only environment with explicit authorization and never with public privileged admin access. Demo-only controls must not be framed as production features.
+
+See [System Architecture](./04_System_Architecture.md), [Security Flow](./05_Cryptography_Security_Flow.md), [Roadmap](./10_Development_Roadmap.md).
